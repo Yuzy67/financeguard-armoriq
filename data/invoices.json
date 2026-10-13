@@ -1,0 +1,42 @@
+[
+  {
+    "invoice_id": "INV-1001",
+    "customer_name": "Acme Design Studio",
+    "amount_inr": 18500,
+    "due_date": "2026-09-20",
+    "status": "overdue",
+    "days_overdue": 21
+  },
+  {
+    "invoice_id": "INV-1002",
+    "customer_name": "Northstar Media",
+    "amount_inr": 42000,
+    "due_date": "2026-09-28",
+    "status": "overdue",
+    "days_overdue": 13
+  },
+  {
+    "invoice_id": "INV-1003",
+    "customer_name": "BrightPath Consulting",
+    "amount_inr": 15000,
+    "due_date": "2026-10-07",
+    "status": "pending",
+    "days_overdue": 0
+  },
+  {
+    "invoice_id": "INV-1004",
+    "customer_name": "UrbanLeaf Foods",
+    "amount_inr": 27500,
+    "due_date": "2026-09-16",
+    "status": "overdue",
+    "days_overdue": 25
+  },
+  {
+    "invoice_id": "INV-1005",
+    "customer_name": "PixelForge Labs",
+    "amount_inr": 32000,
+    "due_date": "2026-10-09",
+    "status": "paid",
+    "days_overdue": 0
+  }
+]

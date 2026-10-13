@@ -1,0 +1,4 @@
+armoriq-sdk
+mcp[cli]
+fastapi
+uvicorn
