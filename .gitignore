@@ -6,9 +6,5 @@ __pycache__/
 *.pyc
 
 armoriq.yaml
-
-# Editor backups
-*~
-
 # Editor backups
 *~
