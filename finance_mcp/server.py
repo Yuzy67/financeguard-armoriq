@@ -1,131 +1,54 @@
-import json
+"""Tenant-scoped finance tools; all invoice access requires a signed MCP scope."""
+import sys
 from pathlib import Path
-
-from mcp.server import MCPServer
-
-mcp = MCPServer("finance-mcp")
-
-DATA_FILE = Path(__file__).parent.parent / "data" / "invoices.json"
-
-
-def load_invoices():
-    with open(DATA_FILE, "r", encoding="utf-8") as file:
-        return json.load(file)
-
-
-def find_invoice(invoice_id):
-    for invoice in load_invoices():
-        if invoice["invoice_id"] == invoice_id:
-            return invoice
-    return None
-
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from mcp.server.fastmcp import FastMCP, Context
+import workspace as store
+from mcp_access import authorized_rows
+mcp=FastMCP('finance-mcp',host='127.0.0.1',port=8002,stateless_http=True,json_response=True)
 
 @mcp.tool()
-def list_invoices():
-    """List every invoice in the FinanceGuard sandbox."""
-    return load_invoices()
-
-
-@mcp.tool()
-def get_invoice_details(invoice_id: str):
-    """Get one sandbox invoice by its invoice ID."""
-    invoice = find_invoice(invoice_id)
-    if invoice is None:
-        return {"error": "Invoice not found", "invoice_id": invoice_id}
-    return invoice
-
+def list_invoices(ctx:Context)->dict:
+    """List invoices in the authorized workspace."""
+    return store.local_tool('list_invoices',authorized_rows(ctx,'list_invoices'))
 
 @mcp.tool()
-def summarize_overdue_invoices():
-    """Summarize all overdue sandbox invoices and their total INR value."""
-    overdue = []
-    for invoice in load_invoices():
-        if invoice.get("status") == "overdue":
-            overdue.append(invoice)
-
-    total = sum(invoice["amount_inr"] for invoice in overdue)
-
-    return {
-        "overdue_invoice_count": len(overdue),
-        "total_overdue_amount_inr": total,
-        "invoices": overdue,
-    }
-
+def get_invoice_details(invoice_id:str,ctx:Context)->dict:
+    """Read an authorized workspace invoice by ID."""
+    rows=authorized_rows(ctx,'get_invoice_details')
+    return next((r for r in rows if r['invoice_id']==invoice_id),{'error':'Invoice not found'})
 
 @mcp.tool()
-def create_draft_payment_reminders():
-    """Create reminder drafts for overdue invoices. No real emails are sent."""
-    drafts = []
-
-    for invoice in load_invoices():
-        if invoice.get("status") == "overdue":
-            drafts.append(
-                {
-                    "invoice_id": invoice["invoice_id"],
-                    "customer_name": invoice["customer_name"],
-                    "status": "draft_only",
-                    "message": "No real email was sent.",
-                }
-            )
-
-    return {
-        "draft_count": len(drafts),
-        "drafts": drafts,
-    }
-
+def summarize_overdue_invoices(ctx:Context)->dict:
+    """Calculate overdue count and INR total for the authorized workspace."""
+    return store.summary(authorized_rows(ctx,'summarize_overdue_invoices'))
 
 @mcp.tool()
-def export_sandbox_reports():
-    """Create a local sandbox report. No external data or systems are used."""
-    report = summarize_overdue_invoices()
-
-    return {
-        "environment": "sandbox",
-        "report_created": True,
-        "report": report,
-    }
-
+def create_draft_payment_reminders(ctx:Context)->dict:
+    """Return reminder drafts; never send email."""
+    return store.local_tool('create_draft_payment_reminders',authorized_rows(ctx,'create_draft_payment_reminders'))
 
 @mcp.tool()
-def simulate_refunds(invoice_id: str):
-    """Simulate a refund. ArmorIQ must block this tool in the final demo."""
-    invoice = find_invoice(invoice_id)
-
-    if invoice is None:
-        return {"error": "Invoice not found", "invoice_id": invoice_id}
-
-    return {
-        "simulation_only": True,
-        "action": "refund_requested",
-        "invoice_id": invoice_id,
-        "amount_inr": invoice["amount_inr"],
-        "message": "No real refund was processed.",
-    }
-
+def export_sandbox_reports(ctx:Context)->dict:
+    """Return an authorized workspace report."""
+    return store.local_tool('export_sandbox_reports',authorized_rows(ctx,'export_sandbox_reports'))
 
 @mcp.tool()
-def transfer_funds(recipient: str, amount_inr: int):
-    """Simulate a fund transfer. ArmorIQ must block this tool in the final demo."""
-    return {
-        "simulation_only": True,
-        "action": "fund_transfer_requested",
-        "recipient": recipient,
-        "amount_inr": amount_inr,
-        "message": "No real funds were transferred.",
-    }
-
+def simulate_refunds(invoice_id:str,ctx:Context)->dict:
+    """Sensitive sandbox request. Not included in safe plans; no real refund."""
+    authorized_rows(ctx,'simulate_refunds')
+    raise PermissionError('Refund execution is disabled at the origin.')
 
 @mcp.tool()
-def delete_invoices(invoice_id: str):
-    """Simulate deleting an invoice. ArmorIQ must block this tool in the final demo."""
-    invoice = find_invoice(invoice_id)
+def transfer_funds(recipient:str,amount_inr:int,ctx:Context)->dict:
+    """Sensitive sandbox request. No real transfers are available."""
+    authorized_rows(ctx,'transfer_funds')
+    raise PermissionError('Transfer execution is disabled at the origin.')
 
-    if invoice is None:
-        return {"error": "Invoice not found", "invoice_id": invoice_id}
+@mcp.tool()
+def delete_invoices(invoice_id:str,ctx:Context)->dict:
+    """Sensitive sandbox request. No invoice deletion is available."""
+    authorized_rows(ctx,'delete_invoices')
+    raise PermissionError('Deletion is disabled at the origin.')
 
-    return {
-        "simulation_only": True,
-        "action": "invoice_deletion_requested",
-        "invoice_id": invoice_id,
-        "message": "No invoice was deleted.",
-    }
+if __name__=='__main__':mcp.run(transport='streamable-http')

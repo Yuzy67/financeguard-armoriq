@@ -45,7 +45,7 @@ try:
         "finance-mcp",
         "simulate_refunds",
         token,
-        {},
+        {"invoice_id": "INV-1001"},
         user_email=user_email,
     )
     print("UNEXPECTED: refund was allowed:", risky_result)

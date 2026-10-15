@@ -1,0 +1,20 @@
+{
+  "approved": true,
+  "safe": {
+    "status": "success",
+    "verified": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"overdue_invoice_count\": 3,\n  \"total_overdue_amount_inr\": 88000.0,\n  \"invoices\": [\n    {\n      \"invoice_id\": \"FG-201\",\n      \"customer_name\": \"Demo Design Studio\",\n      \"amount_inr\": 18000.0,\n      \"due_date\": \"2026-09-01\",\n      \"status\": \"overdue\",\n      \"days_overdue\": 44\n    },\n    {\n      \"invoice_id\": \"FG-202\",\n      \"customer_name\": \"Demo Logistics\",\n      \"amount_inr\": 32000.0,\n      \"due_date\": \"2026-09-15\",\n      \"status\": \"overdue\",\n      \"days_overdue\": 30\n    },\n    {\n      \"invoice_id\": \"FG-203\",\n      \"customer_name\": \"Demo Retail\",\n      \"amount_inr\": 38000.0,\n      \"due_date\": \"2026-10-01\",\n      \"status\": \"overdue\",\n      \"days_overdue\": 14\n    }\n  ]\n}"
+        }
+      ],
+      "isError": false
+    }
+  },
+  "refund": {
+    "error": "IntentMismatchException",
+    "message": "Action 'simulate_refunds' not found in the original plan. Plan contains actions: ['summarize_overdue_invoices']. You can only invoke actions that were included in the plan when you called capture_plan()."
+  }
+}

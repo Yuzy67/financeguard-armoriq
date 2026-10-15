@@ -1,0 +1,24 @@
+{
+  "key_loaded_from_ignored_env": true,
+  "bootstrap_response_fields": [
+    "org",
+    "agent",
+    "agents",
+    "mcps",
+    "toolMap"
+  ],
+  "org": {
+    "orgId": "50bcbee3-3d3f-48cb-8331-61e2b89e607d",
+    "name": "anuj shetty's Workspace"
+  },
+  "agent": {
+    "agentId": "74e4e1bf-c327-4605-8411-ea02843cda7b",
+    "name": "financeguard-demo"
+  },
+  "registered_mcps": [
+    {
+      "name": "finance-mcp",
+      "url": "https://advantage-compliance-detective-terminology.trycloudflare.com/mcp"
+    }
+  ]
+}
