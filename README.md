@@ -82,3 +82,8 @@ Keep runtime/ durable for local data. Plans and demo sessions reset on restart.
 This is a local judging build, not a production financial service. Production
 hosting needs durable storage, rate limits, token revocation checks, TLS,
 and a supported provider onboarding flow.
+
+## Hosted deployment
+
+See [Vercel deployment](docs/VERCEL.md) for runtime setup and temporary-storage limits.
+

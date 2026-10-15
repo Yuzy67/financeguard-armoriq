@@ -4,13 +4,17 @@ import io
 import json
 import os
 import sqlite3
+import tempfile
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from uuid import uuid4
 
 ROOT=Path(__file__).parent
-RUNTIME=Path(os.environ.get('FINANCEGUARD_RUNTIME',str(ROOT/'runtime')))
+# Deployed source is read-only; Vercel only provides temporary scratch space.
+TEMPORARY_STORAGE=os.environ.get('VERCEL')=='1'
+DEFAULT_RUNTIME=Path(tempfile.gettempdir())/'financeguard' if TEMPORARY_STORAGE else ROOT/'runtime'
+RUNTIME=Path(os.environ.get('FINANCEGUARD_RUNTIME',str(DEFAULT_RUNTIME)))
 RUNTIME.mkdir(parents=True,exist_ok=True)
 
 def db():

@@ -23,7 +23,8 @@ mcp_app=mcp.streamable_http_app()
 async def lifespan(app):
     async with mcp.session_manager.run():yield
 app=FastAPI(title='FinanceGuard',docs_url=None,redoc_url=None,lifespan=lifespan)
-app.add_middleware(TrustedHostMiddleware,allowed_hosts=['localhost','127.0.0.1','testserver']+[h for h in os.environ.get('FINANCEGUARD_ALLOWED_HOSTS','').split(',') if h])
+deployment_hosts=[os.environ.get(name,'') for name in ['VERCEL_URL','VERCEL_PROJECT_PRODUCTION_URL','VERCEL_BRANCH_URL']] if os.environ.get('VERCEL')=='1' else []
+app.add_middleware(TrustedHostMiddleware,allowed_hosts=['localhost','127.0.0.1','testserver']+[h.strip() for h in os.environ.get('FINANCEGUARD_ALLOWED_HOSTS','').split(',') if h.strip()]+[h for h in deployment_hosts if h])
 app.mount('/assets',StaticFiles(directory=ROOT/'frontend'),name='assets')
 sessions={};locks={};master=threading.Lock();guest_sessions={}
 SAFE={'list_invoices','summarize_overdue_invoices','create_draft_payment_reminders','export_sandbox_reports'}
@@ -111,6 +112,13 @@ def perform(tool,user,engine='local',approve=False):
             return {'status':status,'reason':event['reason'],'verified':result.verified is True,'result':payload,'event':event}
         except Exception as exc:return failure(uid,tool,exc,engine)
 
+@app.get('/api/health')
+def health():
+    return {'status':'ok','storage':'temporary' if store.TEMPORARY_STORAGE else 'local-persistent','armoriq_configured':bool(os.environ.get('ARMORIQ_API_KEY'))}
+
+@app.get('/favicon.ico',include_in_schema=False)
+def favicon():return Response(status_code=204)
+
 @app.get('/')
 def home():return FileResponse(ROOT/'frontend/index.html')
 
@@ -121,14 +129,14 @@ def demo():
         for old in [k for k,v in guest_sessions.items() if v['expires']<time.time()]:guest_sessions.pop(old,None)
         guest_sessions[key]={'uid':'demo-'+uuid4().hex,'expires':time.time()+3600}
     response=JSONResponse({'status':'READY'})
-    response.set_cookie('fg_demo',key,httponly=True,samesite='strict',max_age=3600,secure=os.environ.get('FINANCEGUARD_HTTPS')=='1')
+    response.set_cookie('fg_demo',key,httponly=True,samesite='strict',max_age=3600,secure=os.environ.get('FINANCEGUARD_HTTPS')=='1' or os.environ.get('VERCEL')=='1')
     return response
 
 @app.get('/api/state')
 def state(user=Depends(identity)):
     kind,rows=store.source(user['uid'])
     with owner_lock(user['uid']):plans={engine:{k:p[k] for k in ['id','tool','expires','plan']} for engine,p in sessions.get(user['uid'],{}).items() if p['expires']>time.time()}
-    return {'invoices':rows,'summary':store.summary(rows),'events':store.history(user['uid']),'source':kind,'plans':plans,'user':user,'armoriq_configured':bool(os.environ.get('ARMORIQ_API_KEY')),'stripe_configured':bool(os.environ.get('STRIPE_SECRET_KEY'))}
+    return {'invoices':rows,'summary':store.summary(rows),'events':store.history(user['uid']),'source':kind,'plans':plans,'user':user,'armoriq_configured':bool(os.environ.get('ARMORIQ_API_KEY')),'stripe_configured':bool(os.environ.get('STRIPE_SECRET_KEY')),'temporary_storage':store.TEMPORARY_STORAGE}
 
 class Action(BaseModel):
     tool:str='summarize_overdue_invoices'

@@ -51,4 +51,11 @@ def delete_invoices(invoice_id:str,ctx:Context)->dict:
     authorized_rows(ctx,'delete_invoices')
     raise PermissionError('Deletion is disabled at the origin.')
 
+def create_server():
+    """A fresh ASGI MCP server for a function invocation's event loop."""
+    server=FastMCP('finance-mcp',host='127.0.0.1',port=8002,stateless_http=True,json_response=True)
+    for tool in [list_invoices,get_invoice_details,summarize_overdue_invoices,create_draft_payment_reminders,export_sandbox_reports,simulate_refunds,transfer_funds,delete_invoices]:
+        server.add_tool(tool)
+    return server
+
 if __name__=='__main__':mcp.run(transport='streamable-http')

@@ -7,6 +7,7 @@ function download(name,data){const url=URL.createObjectURL(new Blob([JSON.string
 function bubble(text,who='assistant'){const div=el('div',text,'bubble '+who);$('#messages').append(div);$('#messages').scrollTop=$('#messages').scrollHeight;return div;}
 function status(text){$('#result').textContent=text;}
 function render(){if(!state)return;
+ $('#storage-notice').hidden=!state.temporary_storage;
  $('#identity').textContent=state.user.signed_in?state.user.email:'Sample workspace';$('#account-open').hidden=state.user.signed_in;$('#logout').hidden=!state.user.signed_in;
  $('#connection').textContent=$('#engine').value==='armoriq'?(state.armoriq_configured?'ArmorIQ key configured · execution depends on registered MCP availability':'ArmorIQ backend key required'):'Local workspace active · execution is protected by the local plan';
  $('#source-label').textContent='Invoice source: '+({sample:'Sample dataset',upload:'Your CSV import',stripe_sandbox:'Stripe sandbox'}[state.source]||state.source);

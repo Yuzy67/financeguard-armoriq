@@ -35,14 +35,25 @@ async def _invoke(tool,token):
     import httpx
     from mcp import ClientSession
     from mcp.client.streamable_http import streamable_http_client
-    # Fixed loopback target; never accept an arbitrary URL from browser input.
-    url='http://127.0.0.1:'+os.environ.get('FINANCEGUARD_PORT','8001')+'/mcp'
-    async with httpx.AsyncClient(headers={'Authorization':'Bearer '+token},timeout=20) as http:
+    async def call(http,url):
         async with streamable_http_client(url,http_client=http) as (read,write,_):
             async with ClientSession(read,write) as session:
                 await session.initialize()
                 result=await session.call_tool(tool,{})
                 if result.isError:raise RuntimeError('MCP rejected the execution. Reapprove or inspect connection health.')
                 return json.loads(result.content[0].text)
+    headers={'Authorization':'Bearer '+token}
+    if os.environ.get('VERCEL')=='1':
+        # No listener exists on localhost in a function. Still use real MCP
+        # initialize/tools/call over HTTP via ASGI, with the same scoped auth.
+        from finance_mcp.server import create_server
+        origin=create_server()
+        asgi=origin.streamable_http_app()
+        async with origin.session_manager.run():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=asgi),headers=headers,timeout=20) as http:
+                return await call(http,'http://127.0.0.1:8002/mcp')
+    url='http://127.0.0.1:'+os.environ.get('FINANCEGUARD_PORT','8001')+'/mcp'
+    async with httpx.AsyncClient(headers=headers,timeout=20) as http:
+        return await call(http,url)
 
 def invoke(tool,token):return asyncio.run(_invoke(tool,token))
