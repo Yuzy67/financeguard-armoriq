@@ -1,5 +1,7 @@
 # FinanceGuard
 
+Created by **Anujay Shetty and Yuvraj Singh**. See [AUTHORS.md](AUTHORS.md).
+
 A finance operations workspace with explicit action plans, invoice imports,
 Firebase sign-in, and visible execution decisions.
 
