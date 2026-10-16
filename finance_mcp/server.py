@@ -1,11 +1,24 @@
 """Tenant-scoped finance tools; all invoice access requires a signed MCP scope."""
-import sys
+import os,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.transport_security import TransportSecuritySettings
 import workspace as store
 from mcp_access import authorized_rows
-mcp=FastMCP('finance-mcp',host='127.0.0.1',port=8002,stateless_http=True,json_response=True)
+def transport_security():
+    hosts=[h.strip() for h in os.environ.get('FINANCEGUARD_ALLOWED_HOSTS','').split(',') if h.strip()]
+    if os.environ.get('VERCEL')=='1':
+        hosts += [os.environ.get(key,'') for key in ['VERCEL_URL','VERCEL_PROJECT_PRODUCTION_URL','VERCEL_BRANCH_URL']]
+    # Exact deployment domains only. Keep DNS rebinding protection enabled.
+    hosts=[h for h in hosts if h and not any(c in h for c in '/*?#@')]
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=['127.0.0.1','127.0.0.1:*','localhost','localhost:*']+hosts,
+        allowed_origins=['http://127.0.0.1:*','http://localhost:*']+['https://'+h for h in hosts],
+    )
+
+mcp=FastMCP('finance-mcp',host='127.0.0.1',port=8002,stateless_http=True,json_response=True,transport_security=transport_security())
 
 @mcp.tool()
 def list_invoices(ctx:Context)->dict:
@@ -53,7 +66,7 @@ def delete_invoices(invoice_id:str,ctx:Context)->dict:
 
 def create_server():
     """A fresh ASGI MCP server for a function invocation's event loop."""
-    server=FastMCP('finance-mcp',host='127.0.0.1',port=8002,stateless_http=True,json_response=True)
+    server=FastMCP('finance-mcp',host='127.0.0.1',port=8002,stateless_http=True,json_response=True,transport_security=transport_security())
     for tool in [list_invoices,get_invoice_details,summarize_overdue_invoices,create_draft_payment_reminders,export_sandbox_reports,simulate_refunds,transfer_funds,delete_invoices]:
         server.add_tool(tool)
     return server

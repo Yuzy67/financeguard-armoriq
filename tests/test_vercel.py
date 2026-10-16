@@ -17,6 +17,12 @@ with tempfile.TemporaryDirectory() as scratch,patch('tempfile.gettempdir',return
         assert web.get('/').status_code==200
         assert web.get('/favicon.ico').status_code==204
         assert web.get('/api/health').json()['storage']=='temporary'
+        headers={'Accept':'application/json, text/event-stream'}
+        discovery=web.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':1,'method':'tools/list','params':{}})
+        assert discovery.status_code==200,discovery.status_code
+        assert len(discovery.json()['result']['tools'])==8
+        protected=web.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'summarize_overdue_invoices','arguments':{}}})
+        assert protected.json()['result']['isError'] is True
         assert web.get('/api/state').status_code==401
         response=web.post('/api/demo')
         assert response.status_code==200

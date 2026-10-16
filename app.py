@@ -133,7 +133,7 @@ def perform(tool,user,engine='local',approve=False):
 
 @app.get('/api/health')
 def health():
-    return {'status':'ok','storage':'temporary' if store.TEMPORARY_STORAGE else 'local-persistent','armoriq_configured':bool(os.environ.get('ARMORIQ_API_KEY'))}
+    return {'status':'ok','storage':'temporary' if store.TEMPORARY_STORAGE else 'local-persistent','armoriq_configured':bool(os.environ.get('ARMORIQ_API_KEY')),'mcp_signing_configured':bool(os.environ.get('FINANCEGUARD_MCP_SIGNING_KEY')),'mcp_url_configured':bool(os.environ.get('MCP_SERVER_URL'))}
 
 @app.get('/favicon.ico',include_in_schema=False)
 def favicon():return Response(status_code=204)

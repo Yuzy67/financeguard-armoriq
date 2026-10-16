@@ -41,6 +41,14 @@ payment gateway, bank account, or customer payment-provider OAuth is connected.
 
 ## Current verification status
 
+Update: the newly saved key now authenticates to the intended Yuvaraj workspace.
+The ngrok registration was unreachable. The deployed MCP host/signing fix and
+private Vercel import helper are documented in [Vercel setup](docs/VERCEL.md).
+A fresh real-provider invocation and trace check remain required after the
+private hosting variables are imported.
+
+### Earlier verification
+
 Earlier local real-provider execution evidence is preserved in
 [docs/evidence](docs/evidence/API-VERIFICATION.md). Those October 15 results
 belong to Anuj's organization and predate the session instrumentation.

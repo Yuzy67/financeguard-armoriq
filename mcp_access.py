@@ -5,6 +5,10 @@ import jwt
 import workspace as store
 
 def secret():
+    configured=os.environ.get('FINANCEGUARD_MCP_SIGNING_KEY')
+    if configured:
+        if len(configured)<32:raise RuntimeError('FINANCEGUARD_MCP_SIGNING_KEY must contain at least 32 characters.')
+        return configured
     path=store.RUNTIME/'mcp-signing.key'
     try:
         with path.open('x',encoding='utf-8') as output:output.write(secrets.token_urlsafe(48))

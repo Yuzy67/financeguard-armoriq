@@ -55,3 +55,30 @@ Do not forward a Vercel-generated scope credential to a separate local database
 and expect user-upload parity. Use sample data in both runtimes, or host the
 app and origin together with durable shared state before claiming imported
 cloud invoices work through that remote origin.
+
+## Stable deployed MCP endpoint (current setup)
+
+The intended endpoint is https://financeguard-armoriq.vercel.app/mcp.
+The MCP transport now accepts exact configured deployment hosts with DNS
+rebinding protection still enabled. Missing scope credentials still deny
+invoice tool access; discovery only lists tool names and schemas.
+
+For a stable hosted sample demonstration, set a private
+FINANCEGUARD_MCP_SIGNING_KEY (32+ random characters) consistently across
+instances and FINANCEGUARD_SCOPED_MCP=1. The built-in sample dataset is the same
+on every instance, so a sample scope can be verified across separate instances.
+This does not make uploaded data or plans durable across server restarts.
+
+Run tools/prepare_vercel_env.py locally to validate your current key and create
+runtime/vercel-production.env. It is a private Git-ignored import file, not a
+submission artifact. It includes the current API key, expected organization,
+public MCP URL, and matching signing key. Never paste or commit its contents.
+
+Import that file in Vercel project Settings / Environment Variables for
+Production, save, and redeploy. After deployment, /api/health must show both
+armoriq_configured=true and mcp_signing_configured=true. Those booleans only
+confirm settings exist; a real SDK invocation must still verify they work.
+
+Register the deployed HTTPS /mcp URL in ArmorIQ's matching organization using
+tools/register_mcp.py, then run tools/check_setup.py and the real demo. No laptop
+tunnel is needed for this endpoint. Do not expose /runtime or configuration files.
