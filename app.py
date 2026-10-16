@@ -17,6 +17,7 @@ load_dotenv(ROOT/'.env')
 import workspace as store
 from security import verify_identity
 import mcp_access
+import assistant_brain
 from armoriq_workflow import ArmorIQWorkflow
 from finance_mcp.server import mcp
 mcp_app=mcp.streamable_http_app()
@@ -70,10 +71,11 @@ def failure(uid,tool,exc,engine,observability=None):
     event=store.event(uid,tool,'BLOCKED' if blocked else 'ERROR',reason,engine='ARMORIQ_SDK' if name=='IntentMismatchException' else engine.upper(),observability=observability)
     return JSONResponse({'status':event['status'],'reason':reason,'exception':name,'event':event,'verified':False},status_code=200 if blocked else 502)
 
-def perform(tool,user,engine='local',approve=False):
+def perform(tool,user,engine='local',approve=False,expected_fingerprint=None):
     uid=user['uid']
     with owner_lock(uid):
         kind,rows=store.source(uid);session=sessions.setdefault(uid,{})
+        if expected_fingerprint and fingerprint(rows)!=expected_fingerprint:raise HTTPException(409,'Invoice data changed. Request approval again for the new snapshot.')
         if engine not in {'local','armoriq'}:raise HTTPException(400,'Unknown execution engine.')
         if engine=='armoriq' and kind!='sample' and os.environ.get('FINANCEGUARD_SCOPED_MCP')!='1':raise HTTPException(409,'Scoped MCP forwarding must be configured before ArmorIQ can read your imported workspace.')
         if approve:
@@ -155,7 +157,7 @@ def demo():
 def state(user=Depends(identity)):
     kind,rows=store.source(user['uid'])
     with owner_lock(user['uid']):plans={engine:{k:p[k] for k in ['id','tool','expires','plan']} for engine,p in sessions.get(user['uid'],{}).items() if p['expires']>time.time()}
-    return {'invoices':rows,'summary':store.summary(rows),'events':store.history(user['uid']),'source':kind,'plans':plans,'user':user,'armoriq_configured':bool(os.environ.get('ARMORIQ_API_KEY')),'stripe_configured':bool(os.environ.get('STRIPE_SECRET_KEY')),'temporary_storage':store.TEMPORARY_STORAGE}
+    return {'invoices':rows,'summary':store.summary(rows),'events':store.history(user['uid']),'source':kind,'plans':plans,'user':user,'armoriq_configured':bool(os.environ.get('ARMORIQ_API_KEY')),'stripe_configured':bool(os.environ.get('STRIPE_SECRET_KEY')),'temporary_storage':store.TEMPORARY_STORAGE,'assistant':assistant_brain.configuration()}
 
 class Action(BaseModel):
     tool:str='summarize_overdue_invoices'
@@ -202,7 +204,7 @@ class AgentRequest(BaseModel):
     message:str=Field(min_length=1,max_length=2000)
     engine:str='local'
 
-@app.post('/api/agent')
+@app.post('/api/command')
 def agent(body:AgentRequest,user=Depends(identity)):
     text=body.message.lower()
     tool=('simulate_refunds' if 'refund' in text else 'transfer_funds' if 'transfer' in text else 'delete_invoices' if 'delete' in text else 'create_draft_payment_reminders' if 'reminder' in text or 'draft' in text else 'export_sandbox_reports' if 'export' in text or 'report' in text else 'summarize_overdue_invoices' if any(s in text for s in ['overdue','owe','summary','summarize']) else 'list_invoices' if 'invoice' in text else None)
@@ -212,6 +214,7 @@ def agent(body:AgentRequest,user=Depends(identity)):
 class Import(BaseModel):
     csv:str=Field(max_length=700000)
     confirm:bool=False
+    auto_sync:bool=False
 
 @app.post('/api/import')
 def upload(body:Import,user=Depends(identity)):
@@ -221,7 +224,7 @@ def upload(body:Import,user=Depends(identity)):
     if body.confirm:
         with owner_lock(user['uid']):
             store.save(user['uid'],'upload',rows);discard_plans(user['uid'])
-            store.event(user['uid'],'import_invoices','IMPORTED',f'Imported {len(rows)} invoices. Prior plans invalidated.')
+            store.event(user['uid'],'auto_sync_invoices' if body.auto_sync else 'import_invoices','IMPORTED',f'Imported {len(rows)} invoices. Prior plans invalidated.')
     return {'invoices':rows,'count':len(rows),'saved':body.confirm}
 
 @app.get('/api/template')
@@ -264,6 +267,9 @@ def stripe_sync(user=Depends(identity)):
     except ValueError as exc:raise HTTPException(400,str(exc)) from None
     with owner_lock(user['uid']):store.save(user['uid'],'stripe_sandbox',rows);discard_plans(user['uid'])
     return {'status':'SYNCED','count':len(rows)}
+
+from chat_api import install as install_chat
+install_chat(app,identity,perform,store,sessions,owner_lock,fingerprint)
 
 # Last mount preserves /api routes and serves the SDK's default /mcp path.
 app.mount('/',mcp_app)

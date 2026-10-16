@@ -21,13 +21,20 @@ an intent token, checks permission, invokes the MCP through ArmorIQ, reports the
 actual execution, and flushes observability. A refund outside that scope is
 rejected by SDK intent binding before the proxy invocation.
 
-The request panel uses deterministic command routing. No general LLM, voice,
-payment gateway, bank account, or customer payment-provider OAuth is connected.
+The conversation assistant uses real OpenRouter tool calling, server-owned
+history, inline human approval, and the existing policy/MCP execution boundary.
+Configure OPENROUTER_API_KEY and OPENROUTER_MODEL privately on the backend.
+See [AI assistant setup and verification](docs/AI-ASSISTANT.md). Manual task
+controls remain available in Permissions; /api/command is explicitly legacy
+command routing. Voice, payment gateways, bank access and customer OAuth are
+not connected.
 
 The workspace opens directly to the invoice inventory: search by customer or
 invoice, filter statuses, sort, inspect details, and export CSV. Sign in to
 import an accounting/spreadsheet CSV, or link a local CSV file and explicitly
-refresh its snapshot. Each import is previewed and clears old approvals.
+refresh its snapshot. The initial import is previewed and clears old approvals.
+Opt-in Auto-sync uploads subsequent validated file changes while the page is
+open; it clears approvals and old chat context after a changed dataset.
 See [invoice sources and limitations](docs/INVOICE-SOURCES.md). File linking
 does not connect a private Google Sheets or accounting-provider account.
 

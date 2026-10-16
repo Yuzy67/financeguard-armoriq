@@ -16,6 +16,11 @@ let state = null,
 let linkedFile = null,
   pendingHandle = null,
   pendingRevision = -1;
+let conversation = null,
+  chatSnapshot = "",
+  linkedSnapshot = "",
+  autoSync = false,
+  watchingFile = false;
 const $all = (s) => document.querySelectorAll(s);
 function el(tag, text, cls) {
   const node = document.createElement(tag);
@@ -28,7 +33,10 @@ async function api(path, body) {
   if (user) headers.Authorization = "Bearer " + (await user.getIdToken());
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const controller = new AbortController(),
-    timer = setTimeout(() => controller.abort(), 45000);
+    timer = setTimeout(
+      () => controller.abort(),
+      ["/api/agent", "/api/chat/approve"].includes(path) ? 90000 : 45000,
+    );
   try {
     const response = await fetch(path, {
       method: body !== undefined ? "POST" : "GET",
@@ -132,6 +140,150 @@ function bubble(text, who = "assistant") {
   $("#messages").scrollTop = $("#messages").scrollHeight;
   return div;
 }
+function richText(node, text) {
+  for (const line of text.split("\n")) {
+    const paragraph = el(
+      "p",
+      "",
+      line.startsWith("- ") ? "chat-list-line" : "",
+    );
+    const parts = line.replace(/^#{1,4}\s+/, "").split(/\*\*([^*]+)\*\*/g);
+    parts.forEach((part, index) =>
+      paragraph.append(
+        index % 2 ? el("strong", part) : document.createTextNode(part),
+      ),
+    );
+    node.append(paragraph);
+  }
+}
+function renderConversation(next) {
+  conversation = next;
+  $("#messages").replaceChildren();
+  if (!next.messages.length) {
+    const welcome = el("div", "", "chat-welcome");
+    welcome.append(
+      el("span", "✦", "welcome-mark"),
+      el("h2", "What needs your attention today?"),
+      el(
+        "p",
+        "Ask a question, work through overdue invoices, or prepare your next follow-up. You approve access before invoice tools run.",
+      ),
+    );
+    $("#messages").append(welcome);
+  }
+  for (const item of next.messages) {
+    const message = bubble("", item.role);
+    message.append(
+      el(
+        "span",
+        item.role === "user" ? "YOU" : "FINANCEGUARD",
+        "message-author",
+      ),
+    );
+    richText(message, item.content);
+    for (const action of item.actions || []) {
+      const proof = el("div", "", "chat-tool-result");
+      proof.append(
+        el("span", action.status, "status " + action.status),
+        el("p", action.reason),
+      );
+      proof.append(
+        el(
+          "small",
+          action.verified === true
+            ? "ArmorIQ SDK verified=True"
+            : (action.event?.engine || "Application") +
+                " · No ArmorIQ verification claimed",
+        ),
+      );
+      if (action.result) {
+        if (action.result.overdue_invoice_count !== undefined)
+          proof.append(
+            el(
+              "p",
+              `${action.result.overdue_invoice_count} overdue invoices · ${money(action.result.total_overdue_amount_inr)}`,
+              "actual-total",
+            ),
+          );
+        const details = el("details", "");
+        details.append(
+          el("summary", "Inspect actual tool result"),
+          el("pre", JSON.stringify(action.result, null, 2)),
+        );
+        const save = el(
+          "button",
+          action.result.drafts ? "Download reminder drafts" : "Download result",
+        );
+        save.onclick = () =>
+          download("financeguard-result.json", action.result);
+        proof.append(details, save);
+      }
+      message.append(proof);
+    }
+  }
+  const latestAction = next.messages
+    .flatMap((item) => item.actions || [])
+    .at(-1);
+  $("#verified-title").textContent = latestAction
+    ? latestAction.verified === true
+      ? "Intent verified"
+      : latestAction.status === "BLOCKED"
+        ? "Request blocked"
+        : latestAction.status === "ERROR"
+          ? "Execution needs attention"
+          : "Local execution completed"
+    : "Awaiting execution";
+  $("#verified-text").textContent = latestAction
+    ? latestAction.verified === true
+      ? "ArmorIQ SDK returned verified=True for this execution."
+      : latestAction.reason
+    : "Verification status comes from the selected execution engine.";
+  const pending = next.pending;
+  $("#chat-pending").replaceChildren();
+  $("#chat-pending").hidden = !pending;
+  if (pending) {
+    const name =
+      [...$("#tool").options]
+        .find((option) => option.value === pending.tool)
+        ?.textContent.trim() || pending.tool;
+    const card = el("div", "", "pending-card");
+    card.append(
+      el("span", "YOUR PERMISSION IS REQUIRED", "eyebrow"),
+      el("h3", name),
+      el(
+        "p",
+        (pending.engine === "armoriq"
+          ? "ArmorIQ protection"
+          : "Local policy · No ArmorIQ verification") +
+          " · Current invoice snapshot · Five-minute permission",
+      ),
+      el(
+        "p",
+        "The result will be shared with the AI model to prepare its answer. Refunds, transfers, deletion, and sending emails are excluded.",
+      ),
+    );
+    const approve = el("button", "Approve & run this task", "primary");
+    approve.onclick = () =>
+      task(async () => {
+        const result = await api("/api/chat/approve", {
+          request_id: pending.id,
+        });
+        renderConversation(result.conversation);
+        status(result.reply, result.status === "ERROR" ? "error" : "info");
+      });
+    card.append(approve);
+    $("#chat-pending").append(card);
+  }
+  $("#chat-usage").textContent = next.usage?.total_tokens
+    ? next.usage.total_tokens.toLocaleString() + " tokens this conversation"
+    : "No reported token usage";
+  $("#messages").scrollTop = $("#messages").scrollHeight;
+}
+async function loadConversation() {
+  const version = revision;
+  const next = await api("/api/chat");
+  if (version === revision) renderConversation(next);
+}
 function status(text, kind = "info") {
   $("#result").textContent = text;
   $("#result").dataset.kind = kind;
@@ -187,6 +339,29 @@ function render() {
         ? "Imported snapshot · Upload again or link a file to refresh your records."
         : "Example records · Add your own invoice export when you’re ready.";
   $("#refresh-file").hidden = !linkedFile || state.source !== "upload";
+  $("#auto-sync-control").hidden = !linkedFile || state.source !== "upload";
+  $("#auto-sync").checked = autoSync;
+  if (autoSync && linkedFile)
+    $("#linked-status").textContent =
+      linkedFile.name +
+      " · Auto-sync on while this page is open. Changes clear old approvals.";
+  const assistant = state.assistant || {};
+  $("#request").disabled = busy || !authReady || !state.user.signed_in;
+  $("#chat .primary").disabled =
+    busy || !authReady || !state.user.signed_in || !assistant.configured;
+  $("#new-chat").disabled = busy || !authReady;
+  $("#model-label").textContent = assistant.configured
+    ? assistant.model + " · OpenRouter"
+    : "OpenRouter · Setup required";
+  $("#assistant-note").textContent = !state.user.signed_in
+    ? "Sign in to use AI chat. You can try the sample tools through Permissions."
+    : assistant.configured
+      ? "AI can make mistakes. Review source records and actual tool results. Tool results are shared with the model after approval."
+      : "OPENROUTER_API_KEY is required on the backend. No model response is fabricated.";
+  $("#chat-protection").textContent =
+    $("#engine").value === "armoriq"
+      ? "ArmorIQ protection selected · Provider must verify execution"
+      : "Local policy · No ArmorIQ verification";
   $("#nav-count").textContent = state.invoices.length;
   $("#total-invoices").textContent = state.invoices.length;
   $("#outstanding-amount").textContent = money(
@@ -359,6 +534,11 @@ async function refresh() {
   if (version === revision) {
     state = next;
     render();
+    const snapshot = JSON.stringify(next.invoices) + next.user.uid;
+    if (snapshot !== chatSnapshot) {
+      chatSnapshot = snapshot;
+      await loadConversation();
+    }
   }
 }
 async function task(work) {
@@ -514,12 +694,28 @@ $("#chat").onsubmit = (e) => {
   if (!text || busy) return;
   $("#request").value = "";
   bubble(text, "user");
-  task(async () =>
-    outcome(
-      await api("/api/agent", { message: text, engine: $("#engine").value }),
-    ),
-  );
+  task(async () => {
+    const thinking = bubble("Thinking through your request…", "thinking");
+    try {
+      const result = await api("/api/agent", {
+        message: text,
+        engine: $("#engine").value,
+      });
+      renderConversation(result.conversation);
+    } finally {
+      thinking.remove();
+    }
+  });
 };
+$("#request").onkeydown = (event) => {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    $("#chat").requestSubmit();
+  }
+};
+$("#new-chat").onclick = () =>
+  task(async () => renderConversation(await api("/api/chat/new", {})));
+$("#show-permissions").onclick = () => $("#permissions").showModal();
 $all("[data-message]").forEach(
   (b) =>
     (b.onclick = () => {
@@ -559,6 +755,8 @@ $("#sample").onclick = () =>
       return;
     await api("/api/source/sample", {});
     linkedFile = null;
+    autoSync = false;
+    linkedSnapshot = "";
     $("#sources").close();
     $("#source-feedback").textContent =
       "Sample invoices loaded. Prior plans cleared.";
@@ -653,6 +851,8 @@ $("#confirm-import").onclick = () =>
     const d = await api("/api/import", { csv: pendingCSV, confirm: true });
     if (version !== revision) return;
     linkedFile = handle;
+    linkedSnapshot = pendingCSV;
+    autoSync = false;
     $("#import-preview").close();
     pendingCSV = "";
     pendingHandle = null;
@@ -662,19 +862,85 @@ $("#confirm-import").onclick = () =>
     toast(`Imported ${d.count} invoices. Your workspace is ready.`, "success");
     location.hash = "invoices";
   });
+$("#auto-sync").onchange = () => {
+  if (!linkedFile || !state?.user.signed_in) {
+    $("#auto-sync").checked = false;
+    return;
+  }
+  autoSync =
+    $("#auto-sync").checked &&
+    window.confirm(
+      "Automatically upload validated changes from this linked CSV while this page is open? Updates replace this workspace’s invoice snapshot and clear action approvals. No money moves and no emails are sent. Turn this off at any time.",
+    );
+  render();
+};
+async function checkLinkedFile() {
+  if (
+    !autoSync ||
+    !linkedFile ||
+    busy ||
+    watchingFile ||
+    document.hidden ||
+    document.querySelector("dialog[open]")
+  )
+    return;
+  watchingFile = true;
+  const handle = linkedFile,
+    version = revision;
+  try {
+    const file = await handle.getFile();
+    if (file.size > 650000)
+      throw Error("Auto-sync paused: the CSV exceeds 650 KB.");
+    const csv = await file.text();
+    if (
+      csv === linkedSnapshot ||
+      !autoSync ||
+      busy ||
+      version !== revision ||
+      handle !== linkedFile
+    )
+      return;
+    await task(async () => {
+      try {
+        const result = await api("/api/import", {
+          csv,
+          confirm: true,
+          auto_sync: true,
+        });
+        if (version !== revision || handle !== linkedFile) return;
+        linkedSnapshot = csv;
+        toast(
+          `Auto-synced ${result.count} invoices. Previous approvals were cleared.`,
+          "success",
+        );
+      } catch (error) {
+        autoSync = false;
+        throw Error("Auto-sync paused: " + error.message);
+      }
+    });
+  } catch (error) {
+    if (version === revision && handle === linkedFile) {
+      autoSync = false;
+      render();
+      toast(
+        "Auto-sync paused. Check file access and CSV format, then reconnect or enable it again.",
+        "error",
+      );
+    }
+  } finally {
+    watchingFile = false;
+  }
+}
+setInterval(checkLinkedFile, 10000);
 $("#download-audit").onclick = () =>
   task(async () =>
     download("financeguard-activity.json", await api("/api/audit-log")),
   );
 $("#audit-filter").onchange = render;
 $("#overview-run").onclick = () => {
-  if (!state?.plans[$("#engine").value]) {
-    location.hash = "security";
-    toast("Choose your execution mode and approve the summary plan first.");
-    return;
-  }
   location.hash = "security";
-  $("#run").click();
+  $("#request").value = "Which overdue invoices should I follow up on first?";
+  $("#request").focus();
 };
 $("#invoice-search").oninput = render;
 $("#invoice-sort").onchange = render;
@@ -729,7 +995,9 @@ $("#detail-reminder").onclick = () => {
   location.hash = "security";
   $("#tool").value = "create_draft_payment_reminders";
   render();
-  toast("Review and approve reminder drafts for your overdue invoices.");
+  $("#request").value =
+    "Prepare payment reminder drafts for all my overdue invoices.";
+  $("#request").focus();
 };
 function csvCell(value) {
   let text = String(value);
@@ -832,6 +1100,10 @@ async function initializeAuth() {
       state = null;
       pendingCSV = "";
       linkedFile = null;
+      autoSync = false;
+      linkedSnapshot = "";
+      conversation = null;
+      chatSnapshot = "";
       pendingHandle = null;
       pendingRevision = -1;
       accountSignout.hidden = !next;
@@ -858,6 +1130,7 @@ async function initializeAuth() {
         $("#connection").textContent = e.message;
       } finally {
         authReady = true;
+        render();
       }
     });
     $("#account-form").onsubmit = (e) => {

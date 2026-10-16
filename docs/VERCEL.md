@@ -18,6 +18,12 @@ function timeout. The frontend and sample invoices ship with the application.
 
 ## Environment configuration
 
+For AI chat, set OPENROUTER_API_KEY and OPENROUTER_MODEL on the backend only.
+The private runtime/vercel-production.env preparation helper includes these
+when present locally. New environment values require a redeploy. A free model
+may be rate-limited; a configured key does not prove a successful model call.
+Conversation history uses the same temporary SQLite storage limitation below.
+
 Set private ARMORIQ_API_KEY in Vercel project settings only. Use a replacement
 for the key previously exposed in Git history. Set FIREBASE_PROJECT_ID=asmoneykit.
 Add financeguard-armoriq.vercel.app to Firebase Auth authorized domains if needed.

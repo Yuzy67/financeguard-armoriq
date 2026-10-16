@@ -22,7 +22,15 @@ connections and automatic Google Sheets synchronization are not implemented.
 File permission is read-only. The source file is never modified. A handle is
 kept only in memory for the current signed-in session; reconnect after reload
 or account changes. Permission loss or a moved file requires reconnection.
-There is no automatic background sync. Imported data has the storage lifetime
+After the initial confirmed import, opt-in Auto-sync checks the selected file
+every ten seconds while this page is open and visible. Explicit consent allows
+subsequent validated snapshots to replace the workspace automatically. Invalid
+CSV or lost permission pauses sync and preserves the previous records. Disable
+the toggle to stop it. It pauses during an assistant request or open dialog;
+it does not run after closing the browser and does not send emails or move money.
+Changed datasets invalidate approvals and old conversation context. This is a
+user-enabled source importer, not an autonomous model tool or an ArmorIQ decision.
+Imported data has the storage lifetime
 shown in the app; Vercel's temporary storage is not durable shared storage.
 
 ## Supported CSV

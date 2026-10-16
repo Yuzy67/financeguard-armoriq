@@ -43,7 +43,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(self.post('/api/import',{'csv':csv,'confirm':True}).json()['saved'])
         self.assertEqual(self.post('/api/execute',{}).status_code,409)
         self.post('/api/approve',{})
-        result=self.post('/api/agent',{'message':'summarize overdue invoices'}).json()
+        result=self.post('/api/command',{'message':'summarize overdue invoices'}).json()
         self.assertEqual(result['result']['total_overdue_amount_inr'],123.45)
         self.assertFalse(result['verified'])
         before=self.web.get('/api/state').json()['invoices']
@@ -60,12 +60,12 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.post('/api/import',{'csv':header+'A,Name,1,2020-01-01,paid\nA,Name,1,2020-01-01,paid\n'}).status_code,400)
     def test_drafts_and_reports_need_their_own_plan(self):
         self.post('/api/approve',{})
-        self.assertEqual(self.post('/api/agent',{'message':'draft reminders'}).json()['status'],'BLOCKED')
+        self.assertEqual(self.post('/api/command',{'message':'draft reminders'}).json()['status'],'BLOCKED')
         self.post('/api/approve',{'tool':'create_draft_payment_reminders'})
-        result=self.post('/api/agent',{'message':'draft reminders'}).json()['result']
+        result=self.post('/api/command',{'message':'draft reminders'}).json()['result']
         self.assertEqual(result['draft_count'],3);self.assertEqual(result['emails_sent'],0)
         self.post('/api/approve',{'tool':'export_sandbox_reports'})
-        self.assertIn('report',self.post('/api/agent',{'message':'export report'}).json()['result'])
+        self.assertIn('report',self.post('/api/command',{'message':'export report'}).json()['result'])
     def test_expiry_and_cloud_data_boundary(self):
         self.post('/api/approve',{})
         module.sessions[self.user['uid']]['local']['expires']=0

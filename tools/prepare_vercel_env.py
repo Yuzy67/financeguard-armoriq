@@ -42,6 +42,9 @@ def main():
         'FINANCEGUARD_ALLOWED_HOSTS':'financeguard-armoriq.vercel.app',
         'FINANCEGUARD_HTTPS':'1',
     }
+    if values.get('OPENROUTER_API_KEY'):
+        prepared['OPENROUTER_API_KEY']=values['OPENROUTER_API_KEY']
+        prepared['OPENROUTER_MODEL']=values.get('OPENROUTER_MODEL') or 'liquid/lfm-2.5-2.6b:free'
     output=runtime/'vercel-production.env'
     output.write_text('# PRIVATE: import in Vercel Production. Never commit or share.\n')
     for name,value in prepared.items():set_key(str(output),name,value)
