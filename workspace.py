@@ -34,8 +34,9 @@ def save(owner,kind,rows):
 def reset(owner):
     with db() as conn:conn.execute('DELETE FROM invoices WHERE owner=?',(owner,))
 
-def event(owner,action,status,reason,verified=False,engine='LOCAL_POLICY'):
+def event(owner,action,status,reason,verified=False,engine='LOCAL_POLICY',observability=None):
     data={'id':str(uuid4()),'timestamp':datetime.now(timezone.utc).isoformat(),'action':action,'status':status,'reason':reason,'verified':verified,'engine':engine}
+    if observability:data['observability']=observability
     with db() as conn:conn.execute('INSERT INTO events VALUES (?,?,?,?)',(data['id'],owner,data['timestamp'],json.dumps(data)))
     return data
 

@@ -42,3 +42,16 @@ access. Do not present this deployment as durable production storage.
 Check /, /assets/app.js, /assets/style.css, /favicon.ico, and /api/health. Start a
 sample workspace, approve a summary, run it, attempt a refund, inspect the trail.
 The Vercel regression test runs the real MCP protocol without a network listener.
+
+## Session tracing update
+
+The web API now uses ArmorIQWorkflow session instrumentation. Configure the
+expected organization, agent, current MCP_SERVER_URL, and observability flag as
+shown in .env.example. A wrong organization or stale registration refuses plan
+creation. Application audit rows expose real SDK IDs and per-flush delivery
+receipts, never intent tokens. See OBSERVABILITY.md.
+
+Do not forward a Vercel-generated scope credential to a separate local database
+and expect user-upload parity. Use sample data in both runtimes, or host the
+app and origin together with durable shared state before claiming imported
+cloud invoices work through that remote origin.

@@ -1,3 +1,7 @@
+# Current setup
+
+The authoritative current setup is [README](../README.md), [Observability](OBSERVABILITY.md), and [Vercel](VERCEL.md). The following notes describe earlier testing and include archived limitations. Do not use old tunnel URLs for a new demo.
+
 # FinanceGuard: current build
 
 ## Verified update — 15 October 2026
@@ -14,7 +18,7 @@ default proxy works; the legacy proxy suggested in the registration response
 did not accept this key. Use FINANCEGUARD_SCOPED_MCP=1 only with our registered
 scope-checking origin. The temporary tunnel is stopped after testing, so a
 fresh public URL must be registered before another external demonstration.
-See ../../financeguard-evidence/TEST-RESULTS.md and the actual captures.
+See evidence/API-VERIFICATION.md and the actual captures.
 
 Start with `powershell -ExecutionPolicy Bypass -File .\start.ps1` in this project.
 Open http://127.0.0.1:8001. The older AsmoneyKit app at port 8000 is separate.

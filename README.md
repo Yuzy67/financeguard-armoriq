@@ -1,89 +1,150 @@
 # FinanceGuard
 
-Created by **Anuj A Shetty and Yuvraj Singh**. See [AUTHORS.md](AUTHORS.md).
-
-A finance operations workspace with explicit action plans, invoice imports,
-Firebase sign-in, and visible execution decisions.
+Created by **Anuj A Shetty and Yuvraj Singh**. [Creators](AUTHORS.md).
 
 **Approved actions execute. Unauthorized actions get blocked.**
 
-## Run
+FinanceGuard is an MCP finance operations assistant for small businesses and
+accountants. It reviews invoices, prepares reminder drafts, and exports reports
+under an explicitly approved plan. It never moves money or sends emails.
+
+## Problem
+
+Giving an agent valid credentials does not mean every action it tries is
+approved. An invoice review must not silently become a refund or transfer.
+
+## Solution
+
+The user chooses a source, selects one action, and approves a five-minute plan.
+In ArmorIQ mode, the backend creates an SDK session, captures the plan, obtains
+an intent token, checks permission, invokes the MCP through ArmorIQ, reports the
+actual execution, and flushes observability. A refund outside that scope is
+rejected by SDK intent binding before the proxy invocation.
+
+The request panel uses deterministic command routing. No general LLM, voice,
+payment gateway, bank account, or customer payment-provider OAuth is connected.
+
+## Demo
+
+- Useful action: `summarize_overdue_invoices`.
+- Sample result: three overdue invoices totaling INR 88,000, calculated from
+  [the repository dataset](data/invoices.json).
+- Boundary test: `simulate_refunds` under the summary plan.
+- A real SDK result can report `verified=True`; this is the SDK invocation
+  status, not an independently signed receipt or proof of a cloud audit row.
+- Local policy mode remains available and is explicitly labeled unverified.
+
+[Live demo](https://financeguard-armoriq.vercel.app) ·
+[Recording runbook](docs/DEMO-RECORDING.md) ·
+[Submission pack](docs/SUBMISSION.md) ·
+[Observability setup](docs/OBSERVABILITY.md)
+
+## Current verification status
+
+Earlier local real-provider execution evidence is preserved in
+[docs/evidence](docs/evidence/API-VERIFICATION.md). Those October 15 results
+belong to Anuj's organization and predate the session instrumentation.
+
+The October 16 session implementation is tested with the installed production
+SDK and mocked provider HTTP. Those tests are not live ArmorIQ evidence.
+The local key still resolves to a different organization than the intended
+`68c3541d-e2d8-462a-8393-243925a5ed23`; the CLI refuses this mismatch.
+New live trace ingestion and console visibility must pass before recording
+or claiming a finished ArmorIQ demo. No traces or successful results are seeded.
+
+## Tech stack
+
+Python 3.12/3.13, FastAPI, ArmorIQ SDK 0.6.10, MCP Streamable HTTP, Firebase
+Authentication, owner-scoped SQLite, and a dependency-free HTML/CSS/JS frontend.
+The SDK is pinned for reproducibility; session tracing exists in this version.
+
+## Local setup
 
 ```powershell
-py -3.13 -m venv .venv
+git clone https://github.com/Yuzy67/financeguard-armoriq.git
+cd financeguard-armoriq
+py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-# Only for new checkouts without .env:
+# New checkout only: never overwrite an existing private configuration.
 Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8001
 ```
 
-Open http://127.0.0.1:8001. Preserve an existing .env instead of overwriting it.
-The start.ps1 helper installs dependencies and starts the current app.
-Neither .env nor armoriq.yaml should ever be committed.
+Open http://127.0.0.1:8001. No ArmorIQ key is needed for the sample/local mode.
+Use Firebase sign-in to preview/import a CSV. In Security, select local mode,
+approve the summary, run it, then attempt a refund and inspect Audit Log.
 
-## What works
+For the real ArmorIQ path:
 
-- Responsive dark dashboard with source setup, invoice filters, approval
-  controls, request panel, downloads, and owner-scoped activity.
-- Local sample demo: three overdue invoices totaling INR 88,000.
-- Five-minute plans for invoice lists, summaries, reminder drafts, and reports.
-- Explicit revocation and denial of actions outside the approved plan.
-- Firebase sign-up/sign-in/reset UI and backend ID-token verification.
-- Authenticated CSV preview/import; SQLite records isolated by verified UID.
-- Test-only Stripe invoice adapter, restricted to one verified operator email.
-- Server-side ArmorIQ plan capture and protected invocation integration.
-- Repaired FastMCP origin exposing the original eight sandbox tools on 8002.
-- Integrated /mcp endpoint on 8001: local invoice actions now use actual MCP
-  calls with owner/action/data/expiry-scoped server-side authorization.
+1. Privately configure a replacement `ARMORIQ_API_KEY` for the intended org.
+2. Set `ARMORIQ_EXPECTED_ORG_ID`, `ARMORIQ_AGENT_ID`, and `MCP_SERVER_URL`.
+3. Start the standalone workspace MCP using `start-mcp.ps1` on port 8002.
+4. Expose only that MCP via a public HTTPS origin/tunnel. Keep the process up.
+5. Register/update the exact URL in the same organization:
+   `.venv\Scripts\python.exe tools/register_mcp.py https://YOUR-HOST/mcp`.
+6. For this workspace-scoped origin set `FINANCEGUARD_SCOPED_MCP=1`. The app and
+   standalone MCP must share the same local runtime/database/signing key.
+7. Run `.venv\Scripts\python.exe tools/check_setup.py` and resolve any drift.
+8. Run `.venv\Scripts\python.exe run_financeguard_demo.py`.
+9. Check the printed session UUID in the correct ArmorIQ Observability view.
 
-Local and ArmorIQ execution modes are visibly distinct. A cloud verified badge
-requires SDK verified=True. Failed cloud calls do not fall back to fake success.
+`MCP_SERVER_URL` is checked against ArmorIQ's registry; it does not override the
+proxy with an arbitrary browser-supplied endpoint. Do not disable TLS validation.
 
-## External status
+## Security model
 
-Update, 15 October 2026: actual browser testing passed Firebase sign-up,
-sign-out/sign-in, CSV persistence, and real ArmorIQ execution against the
-imported workspace with SDK verified=True. Refund under that same plan raised
-IntentMismatchException in SDK validation. Draft and report tools also executed.
-Verification evidence is committed in docs/evidence/, with the animated
-explainer and scene preview in docs/demo/. A temporary tunnel enabled the external test and
-is stopped afterward; register a fresh public origin URL to repeat it.
+Firebase tokens are checked server-side for signature, project, issuer, expiry,
+and identity. Imports and activity are isolated by verified UID. MCP credentials
+bind owner, action, dataset fingerprint, and expiry. Missing/forged credentials
+and changed data fail closed. Each draft/report needs its own explicit approval.
 
-The earlier Internal Proxy Error was resolved by registering the current MCP
-origin and using the installed SDK's documented production proxy. Local
-workflow remains independent of external tunnel availability. Stripe is not
-part of the current UI or demonstrated workflow.
+The key stays in backend environment variables. `.env`, `armoriq.yaml`, runtime
+signing keys, database files, and credentials must never be committed.
+A key was exposed in earlier upstream Git history; it must be revoked. Removing
+it from the current template does not erase that history. Do not force-push a
+shared-history rewrite without coordinating with both maintainers.
 
-The request panel routes supported commands deterministically. It is not a
-connected general LLM or voice assistant. Customer payment-provider OAuth,
-live payments, bank/card access, and public deployment are not implemented.
+## API
 
-## Detailed setup and demo
+Existing `/api/approve` and `/api/execute` routes remain supported.
 
-Read docs/READY-TO-TEST.md for connection steps, limits, and judging flow.
+- `POST /api/run-approved-action`: execute the already approved summary.
+- `POST /api/attempt-refund`: attempt refund under that same plan.
+- `GET /api/audit-log`: owner-scoped application action trail with SDK IDs and
+  ingestion receipts where present; not a substitute for cloud console access.
+- `GET /api/health`: non-sensitive runtime status.
 
-## Test
+POST action bodies accept `{"engine":"local"}` or `{"engine":"armoriq"}`.
+Execution never grants an implicit approval. Authentication is required; the
+sample session is established by `POST /api/demo` with an HTTP-only cookie.
+
+## Tests
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-Tests cover approval/expiry/revocation, CSV validation, workspace isolation,
-mutation denials, drafts/reports, Stripe conversion with mocked responses,
-and forged/expired/wrong-project Firebase token rejection.
+Tests cover identity forgery, owner isolation, CSV validation, plan expiry and
+revocation, denied mutations, drafts/reports, actual ASGI MCP calls on a
+simulated Vercel cold start, API aliases, and SDK trace/report/delivery behavior
+using mocked provider HTTP. Tests never claim external console visibility.
 
-## Data and credentials
+## Vercel and limitations
 
-Firebase Auth establishes identity; it does not fetch invoices. The app uses
-local SQLite instead of Firestore for this single-server demo. Runtime data,
-private provider keys, and tokens are never served as static assets.
+See [Vercel deployment](docs/VERCEL.md). The source is read-only on Vercel; the
+hosted demo uses temporary storage and displays that limit. Data and approvals
+may reset or differ across instances. Durable multi-instance hosting needs a
+shared store; Firebase web configuration alone does not provide one.
 
-Keep runtime/ durable for local data. Plans and demo sessions reset on restart.
-This is a local judging build, not a production financial service. Production
-hosting needs durable storage, rate limits, token revocation checks, TLS,
-and a supported provider onboarding flow.
+A locally registered MCP reads local data. It cannot automatically read a
+separate Vercel instance's uploaded invoices. For judging, use the stable sample
+dataset on both sides, or run the entire scoped workflow on the same persistent
+backend. Do not claim cloud-upload parity until shared storage is verified.
 
-## Hosted deployment
+## Hackathon
 
-See [Vercel deployment](docs/VERCEL.md) for runtime setup and temporary-storage limits.
+Built for Flow State by ArmorIQ. #FlowStateHackathon
 
+The official event page lists submissions closing October 17 and uses UTC,
+without an exact hour. Confirm the final form's timezone and deadline; the
+teammate-provided 11:59 PM IST must not be assumed from the public page.

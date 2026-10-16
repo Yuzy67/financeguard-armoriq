@@ -82,18 +82,30 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.post('/api/execute',{}).status_code,409)
     def test_scoped_armoriq_forwarding_and_result(self):
         from types import SimpleNamespace
-        with patch.dict(os.environ,{'FINANCEGUARD_SCOPED_MCP':'1','ARMORIQ_API_KEY':'unit-test-placeholder'}),patch('armoriq_sdk.ArmorIQClient') as client:
-            client.return_value.get_intent_token.return_value='test-intent'
+        with patch.dict(os.environ,{'FINANCEGUARD_SCOPED_MCP':'1','ARMORIQ_API_KEY':'unit-test-placeholder'}),patch('app.ArmorIQWorkflow') as client:
+            client.return_value.snapshot.return_value={'session_id':'test-session','trace_ids':[],'delivery':'unconfirmed','accepted':0,'rejected':0}
+            client.return_value.flush.return_value=client.return_value.snapshot.return_value
             client.return_value.invoke.return_value=SimpleNamespace(status='success',verified=True,result={'content':[{'type':'text','text':'{"overdue_invoice_count":3,"total_overdue_amount_inr":88000}'}],'isError':False})
             self.assertEqual(self.post('/api/approve',{'engine':'armoriq'}).status_code,200)
-            credential=client.call_args.kwargs['mcp_credentials']['finance-mcp']
-            self.assertEqual(credential['authType'],'bearer')
+            self.assertEqual(client.call_args.args[0],'summarize_overdue_invoices')
+            self.assertTrue(client.call_args.args[1])
             result=self.post('/api/execute',{'engine':'armoriq'}).json()
             self.assertTrue(result['verified']);self.assertEqual(result['result']['overdue_invoice_count'],3)
             client.return_value.invoke.return_value=SimpleNamespace(status='success',verified=True,result={'content':[{'type':'text','text':'tool failed'}],'isError':True})
             response=self.post('/api/execute',{'engine':'armoriq'})
             self.assertEqual(response.status_code,502)
             self.assertEqual(self.web.get('/api/state').json()['events'][0]['status'],'ERROR')
+    def test_action_aliases_and_audit_scope(self):
+        self.assertEqual(self.post('/api/run-approved-action',{}).status_code,409)
+        self.post('/api/approve',{})
+        self.assertEqual(self.post('/api/run-approved-action',{}).json()['status'],'allowed')
+        self.assertEqual(self.post('/api/attempt-refund',{}).json()['status'],'blocked')
+        log=self.web.get('/api/audit-log').json()
+        self.assertEqual(log['source'],'application_action_trail')
+        self.assertEqual(log['events'][0]['action'],'simulate_refunds')
+        self.user=dict(self.user,uid='unrelated-'+str(time.time_ns()))
+        self.assertEqual(self.web.get('/api/audit-log').json()['events'],[])
+
     def test_direct_mcp_denies_missing_scope_and_wrong_tool(self):
         headers={'Accept':'application/json, text/event-stream'}
         payload={'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'summarize_overdue_invoices','arguments':{}}}

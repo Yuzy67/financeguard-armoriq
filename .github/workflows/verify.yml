@@ -1,0 +1,29 @@
+name: Verify FinanceGuard
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ARMORIQ_OBSERVABILITY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --input-type=module --check < frontend/app.js
+      - name: Verify excluded private files
+        shell: python
+        run: |
+          import subprocess
+          paths = subprocess.check_output(['git', 'ls-files']).decode().splitlines()
+          forbidden = {'.env', 'armoriq.yaml'}
+          assert not any(p in forbidden or p.startswith('runtime/') for p in paths), 'Private runtime/config tracked'

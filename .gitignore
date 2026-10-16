@@ -8,3 +8,10 @@ __pycache__/
 armoriq.yaml
 # Editor backups
 *~
+
+node_modules/
+.vercel/
+.pytest_cache/
+*.log
+# Keep rendered media outside the source repository.
+docs/demo/*.mp4

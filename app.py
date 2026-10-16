@@ -17,11 +17,15 @@ load_dotenv(ROOT/'.env')
 import workspace as store
 from security import verify_identity
 import mcp_access
+from armoriq_workflow import ArmorIQWorkflow
 from finance_mcp.server import mcp
 mcp_app=mcp.streamable_http_app()
 @asynccontextmanager
 async def lifespan(app):
-    async with mcp.session_manager.run():yield
+    async with mcp.session_manager.run():
+        try:yield
+        finally:
+            for uid in list(sessions):discard_plans(uid)
 app=FastAPI(title='FinanceGuard',docs_url=None,redoc_url=None,lifespan=lifespan)
 deployment_hosts=[os.environ.get(name,'') for name in ['VERCEL_URL','VERCEL_PROJECT_PRODUCTION_URL','VERCEL_BRANCH_URL']] if os.environ.get('VERCEL')=='1' else []
 app.add_middleware(TrustedHostMiddleware,allowed_hosts=['localhost','127.0.0.1','testserver']+[h.strip() for h in os.environ.get('FINANCEGUARD_ALLOWED_HOSTS','').split(',') if h.strip()]+[h for h in deployment_hosts if h])
@@ -51,13 +55,19 @@ def identity(request:Request):
 def owner_lock(uid):
     with master:return locks.setdefault(uid,threading.Lock())
 
+def discard_plans(uid):
+    previous=sessions.pop(uid,{})
+    for plan in previous.values():
+        if plan.get('client'):plan['client'].close()
+
 def fingerprint(rows):return hashlib.sha256(json.dumps(rows,sort_keys=True).encode()).hexdigest()
 
-def failure(uid,tool,exc,engine):
-    name=type(exc).__name__;blocked=name in {'IntentMismatchException','PolicyBlockedException'}
+def failure(uid,tool,exc,engine,observability=None):
+    name=type(exc).__name__;blocked=name in {'IntentMismatchException','PolicyBlockedException','ActionDenied'}
     reason='IntentMismatchException: action is outside the approved plan.' if name=='IntentMismatchException' else 'ArmorIQ policy denied the action.' if blocked else f'{name}: provider operation failed.'
+    if name=='ConfigurationError':reason=str(exc)
     if 'Internal Proxy Error' in str(exc):reason='ArmorIQ proxy could not execute the tool. Verify registered MCP URL and server health.'
-    event=store.event(uid,tool,'BLOCKED' if blocked else 'ERROR',reason,engine='ARMORIQ_SDK' if name=='IntentMismatchException' else engine.upper())
+    event=store.event(uid,tool,'BLOCKED' if blocked else 'ERROR',reason,engine='ARMORIQ_SDK' if name=='IntentMismatchException' else engine.upper(),observability=observability)
     return JSONResponse({'status':event['status'],'reason':reason,'exception':name,'event':event,'verified':False},status_code=200 if blocked else 502)
 
 def perform(tool,user,engine='local',approve=False):
@@ -75,18 +85,20 @@ def perform(tool,user,engine='local',approve=False):
             if engine=='armoriq':
                 if not os.environ.get('ARMORIQ_API_KEY'):raise HTTPException(503,'Add ARMORIQ_API_KEY to backend .env.')
                 try:
-                    from armoriq_sdk import ArmorIQClient
-                    credentials={'finance-mcp':{'authType':'bearer','token':new['mcp_token']}} if os.environ.get('FINANCEGUARD_SCOPED_MCP')=='1' else None
-                    client=ArmorIQClient(api_key=os.environ['ARMORIQ_API_KEY'],user_id='financeguard-operator',agent_id='financeguard-demo',mcp_credentials=credentials,timeout=25,max_retries=0)
-                    captured=client.capture_plan(llm='financeguard-workflow',prompt='Review invoices without financial mutations.',plan=plan)
-                    new.update(token=client.get_intent_token(captured),client=client)
+                    workflow=ArmorIQWorkflow(tool,new['mcp_token'] if os.environ.get('FINANCEGUARD_SCOPED_MCP')=='1' else None)
+                    new.update(client=workflow)
+                    workflow.flush()
                 except Exception as exc:return failure(uid,tool,exc,engine)
             session[engine]=new
-            event=store.event(uid,'approve_plan','APPROVED',f'Approved {tool} for five minutes.',engine=engine.upper())
+            event=store.event(uid,'approve_plan','APPROVED',f'Approved {tool} for five minutes.',engine=engine.upper(),observability=new['client'].snapshot() if new.get('client') else None)
             return {'status':'APPROVED','reason':event['reason'],'event':event}
         approved=session.get(engine)
-        if not approved or time.time()>=approved['expires']:raise HTTPException(409,'Approve a plan first, or renew the expired plan.')
+        if not approved or time.time()>=approved['expires']:
+            if approved and approved.get('client'):approved['client'].close()
+            session.pop(engine,None)
+            raise HTTPException(409,'Approve a plan first, or renew the expired plan.')
         if approved['fingerprint']!=fingerprint(rows):
+            if approved.get('client'):approved['client'].close()
             session.pop(engine,None);raise HTTPException(409,'Invoice data changed. Approve a new plan.')
         if engine=='local':
             if tool!=approved['tool']:
@@ -97,8 +109,8 @@ def perform(tool,user,engine='local',approve=False):
             event=store.event(uid,tool,'ALLOWED','MCP tool executed for this workspace under the local plan. No ArmorIQ verification claimed.')
             return {'status':'ALLOWED','reason':event['reason'],'result':result,'event':event,'verified':False}
         try:
-            params={'invoice_id':rows[0]['invoice_id']} if tool in {'simulate_refunds','delete_invoices'} else {'recipient':'Sandbox vendor','amount_inr':50000} if tool=='transfer_funds' else {}
-            result=approved['client'].invoke('finance-mcp',tool,approved['token'],params,user_email=user.get('email') or os.environ.get('FINANCEGUARD_USER_EMAIL','demo@example.com'))
+            params={'invoice_id':(rows[0]['invoice_id'] if rows else 'demo-invoice')} if tool in {'simulate_refunds','delete_invoices'} else {'recipient':'Sandbox vendor','amount_inr':50000} if tool=='transfer_funds' else {}
+            result=approved['client'].invoke(tool,params,user_email=user.get('email') or os.environ.get('FINANCEGUARD_USER_EMAIL','demo@example.com'))
             if result.status!='success':raise RuntimeError('Tool execution failed.')
             status='UNEXPECTED_ALLOWED' if tool in UNSAFE else 'ALLOWED'
             payload=result.result
@@ -108,9 +120,16 @@ def perform(tool,user,engine='local',approve=False):
                 if texts:
                     try:payload=json.loads(texts[0])
                     except ValueError:pass
-            event=store.event(uid,tool,status,'ArmorIQ SDK invocation returned.' if status=='ALLOWED' else 'Unsafe action unexpectedly returned. Inspect the policy.',result.verified is True,'ARMORIQ')
+            if tool=='summarize_overdue_invoices':
+                expected=store.summary(rows)
+                if not isinstance(payload,dict) or payload.get('overdue_invoice_count')!=expected['overdue_invoice_count'] or payload.get('total_overdue_amount_inr')!=expected['total_overdue_amount_inr']:
+                    raise RuntimeError('MCP result does not match this workspace snapshot.')
+            observation=approved['client'].flush()
+            event=store.event(uid,tool,status,'ArmorIQ SDK invocation returned.' if status=='ALLOWED' else 'Unsafe action unexpectedly returned. Inspect the policy.',result.verified is True,'ARMORIQ',observability=observation)
             return {'status':status,'reason':event['reason'],'verified':result.verified is True,'result':payload,'event':event}
-        except Exception as exc:return failure(uid,tool,exc,engine)
+        except Exception as exc:
+            observation=approved['client'].flush()
+            return failure(uid,tool,exc,engine,observation)
 
 @app.get('/api/health')
 def health():
@@ -150,6 +169,26 @@ def execute(body:Action,user=Depends(identity)):
     if body.tool not in SAFE|UNSAFE:raise HTTPException(400,'Unsupported tool.')
     return perform(body.tool,user,body.engine)
 
+@app.post('/api/run-approved-action')
+def run_approved_action(body:Action,user=Depends(identity)):
+    result=perform('summarize_overdue_invoices',user,body.engine)
+    if isinstance(result,dict):result.update(action='summarize_overdue_invoices',status=result['status'].lower())
+    return result
+
+@app.post('/api/attempt-refund')
+def attempt_refund(body:Action,user=Depends(identity)):
+    result=perform('simulate_refunds',user,body.engine)
+    if isinstance(result,dict):result.update(action='simulate_refunds',status=result['status'].lower())
+    elif isinstance(result,JSONResponse):
+        payload=json.loads(result.body);payload.update(action='simulate_refunds',status=payload['status'].lower())
+        return JSONResponse(payload,status_code=result.status_code)
+    return result
+
+@app.get('/api/audit-log')
+def audit_log(user=Depends(identity)):
+    return {'source':'application_action_trail','events':store.history(user['uid']),
+            'note':'Local event IDs are not provider IDs. Observability fields contain SDK IDs and ingestion receipts; console visibility is separate.'}
+
 @app.post('/api/revoke')
 def revoke(user=Depends(identity)):
     with owner_lock(user['uid']):
@@ -181,7 +220,7 @@ def upload(body:Import,user=Depends(identity)):
     except ValueError as exc:raise HTTPException(400,str(exc)) from None
     if body.confirm:
         with owner_lock(user['uid']):
-            store.save(user['uid'],'upload',rows);sessions.pop(user['uid'],None)
+            store.save(user['uid'],'upload',rows);discard_plans(user['uid'])
             store.event(user['uid'],'import_invoices','IMPORTED',f'Imported {len(rows)} invoices. Prior plans invalidated.')
     return {'invoices':rows,'count':len(rows),'saved':body.confirm}
 
@@ -190,7 +229,7 @@ def template():return Response('invoice_id,customer_name,amount_inr,due_date,sta
 
 @app.post('/api/source/sample')
 def sample(user=Depends(identity)):
-    with owner_lock(user['uid']):store.reset(user['uid']);sessions.pop(user['uid'],None)
+    with owner_lock(user['uid']):store.reset(user['uid']);discard_plans(user['uid'])
     return {'status':'READY'}
 
 @app.post('/api/source/stripe')
@@ -223,7 +262,7 @@ def stripe_sync(user=Depends(identity)):
         if not rows:raise ValueError('No sandbox invoices found. Create test invoices first.')
     except httpx.HTTPError:raise HTTPException(502,'Stripe sync failed. Check test credentials and read permissions.') from None
     except ValueError as exc:raise HTTPException(400,str(exc)) from None
-    with owner_lock(user['uid']):store.save(user['uid'],'stripe_sandbox',rows);sessions.pop(user['uid'],None)
+    with owner_lock(user['uid']):store.save(user['uid'],'stripe_sandbox',rows);discard_plans(user['uid'])
     return {'status':'SYNCED','count':len(rows)}
 
 # Last mount preserves /api routes and serves the SDK's default /mcp path.
