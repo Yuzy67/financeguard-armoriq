@@ -4,312 +4,431 @@
     <meta charset="utf-8" />
     <meta name="author" content="Anuj A Shetty and Yuvraj Singh" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>FinanceGuard · Your agent. Your boundaries.</title>
+    <title>FinanceGuard · Invoice workspace</title>
     <link rel="stylesheet" href="/assets/style.css" />
   </head>
   <body>
     <aside>
-      <a class="logo" href="/">⬡ <b>FinanceGuard</b></a
-      ><span class="label">YOUR WORKSPACE</span>
+      <a class="logo" href="#invoices"
+        ><span class="brand-icon">F</span><b>FinanceGuard</b></a
+      >
+      <div class="workspace-switch">
+        <span class="workspace-avatar">W</span>
+        <div><b>My workspace</b><small>Invoice management</small></div>
+      </div>
+      <span class="label nav-label">WORKSPACE</span>
       <nav aria-label="Main navigation">
-        <a href="#overview" data-route="overview" aria-current="page"
-          ><span>▦</span> Overview</a
-        ><a href="#invoices" data-route="invoices"><span>▤</span> Invoices</a
-        ><a href="#security" data-route="security"><span>◇</span> Security</a
-        ><a href="#audit" data-route="audit"><span>◎</span> Audit Log</a>
+        <a href="#invoices" data-route="invoices" aria-current="page"
+          ><span>▤</span> Invoices
+          <span id="nav-count" class="nav-count">0</span></a
+        >
+        <a href="#security" data-route="security"
+          ><span>✧</span> Assistant &amp; permissions</a
+        >
+        <a href="#audit" data-route="audit"><span>◷</span> Activity</a>
       </nav>
+      <div class="sidebar-tip">
+        <span class="tiny-icon">◇</span><b>You stay in control.</b>
+        <p>Your assistant needs approval before it can use invoice tools.</p>
+        <a href="#security">Manage permissions →</a>
+      </div>
       <div class="bottom">
-        <span class="pill">SANDBOX WORKSPACE</span>
-        <p>Useful work.<br />Explicit permission.</p>
-        <button id="account-open">Sign in / create account</button
+        <span class="pill">DEMO · NO MONEY MOVEMENT</span
+        ><button id="account-open">Sign in / create account</button
         ><button id="logout" hidden>Sign out</button>
       </div>
     </aside>
-    <main id="home">
+    <main>
       <header>
-        <div>
-          <span class="label">FINANCEGUARD / WORKSPACE</span>
-          <h2 id="page-title">Overview</h2>
+        <div class="breadcrumb">
+          Workspace <span>/</span> <b id="page-title">Invoices</b>
         </div>
-        <div>
-          <span id="identity" class="pill">Starting workspace…</span>
-          <button id="top-account">Account</button>
+        <div class="header-account">
+          <span id="identity">Starting workspace…</span
+          ><button id="top-account" aria-label="Open account">Account</button>
         </div>
       </header>
-      <section class="hero" data-view="overview">
-        <div>
-          <span class="kicker">YOUR AGENT. YOUR BOUNDARIES.</span>
-          <h1>Useful finance work.<br /><span>Within your authority.</span></h1>
-          <p>Approved actions execute. Unauthorized actions get blocked.</p>
-        </div>
-        <div class="authority-note">
-          <span class="label">THE APPROVED SCOPE</span
-          ><b>Read invoices.<br />Keep money still.</b
-          ><span>Refunds, transfers, and deletions are excluded.</span>
-        </div>
-      </section>
-      <div class="connection">
-        <span id="connection">Connecting to your workspace…</span
-        ><span id="source-label">Invoice source: sample</span>
-        <span id="armoriq-connection">ArmorIQ: checking configuration</span>
-      </div>
-      <p id="storage-notice" class="storage-notice" role="status" hidden>
-        Hosted demo: invoice uploads, approvals, and activity are temporary and
-        may reset when the server restarts. Keep your CSV. Use the local build
-        for persistent demo data.
-      </p>
-      <section class="metrics" data-view="overview">
-        <article>
-          <span>APPROVED ACTIONS</span>
-          <h2 id="approved-count">0</h2>
-          <p>Executed within approved scope</p>
-        </article>
-        <article>
-          <span>BLOCKED ATTEMPTS</span>
-          <h2 id="blocked">0</h2>
-          <p>Recorded boundary rejections</p>
-        </article>
-        <article>
-          <span>SDK VERIFIED EXECUTIONS</span>
-          <h2 id="verified-count">0</h2>
-          <p>From real ArmorIQ responses only</p>
-        </article>
-        <article>
-          <span>OVERDUE INVOICES</span>
-          <h2 id="count">—</h2>
-          <p id="amount">Loading receivables…</p>
-        </article>
-      </section>
-      <section class="panel demo-start" data-view="overview">
-        <div>
-          <span class="label">YOUR DEMO, FOUR STEPS</span>
-          <h3>Connect. Approve. Execute. Inspect.</h3>
-          <p class="muted">
-            Start with sample invoices or upload a CSV. In Security, choose your
-            execution mode and approve one action. Run it, then test a refund
-            under the same plan.
-          </p>
-        </div>
-        <div class="overview-actions">
-          <button class="primary" id="overview-run">Run Approved Action</button
-          ><button class="danger" id="overview-refund">
-            Attempt Refund Simulation</button
-          ><a class="button-link" href="#audit">View Audit Log ↗</a
-          ><a class="text-link" href="#security">Review and approve scope →</a>
-        </div>
-      </section>
-      <section class="panel" id="sources" data-view="invoices">
-        <div class="heading">
+      <div class="page-content">
+        <section class="page-heading" data-view="invoices">
           <div>
-            <span class="label">01 / BRING YOUR DATA</span>
-            <h3>Your invoices, one workspace</h3>
+            <span class="eyebrow">YOUR RECEIVABLES, IN ORDER</span>
+            <h1>Invoices</h1>
+            <p>Know what’s paid, what’s due, and what needs a follow-up.</p>
           </div>
-          <span class="pill">Read and prepare</span>
-        </div>
-        <div class="source-grid">
-          <article>
-            <div class="source-symbol">▤</div>
-            <h4>Sample workspace</h4>
-            <p>
-              Explore with five example invoices. No financial account required.
-            </p>
-            <button id="sample">Use sample invoices</button>
-          </article>
-          <article>
-            <div class="source-symbol">↑</div>
-            <h4>Upload invoice CSV</h4>
-            <p>
-              Download a template, add your invoices, and preview before
-              importing.
-            </p>
-            <a href="/api/template">Download template ↗</a
-            ><label class="file-button"
-              >Choose CSV<input type="file" id="csv" accept=".csv,text/csv"
-            /></label>
-          </article>
-        </div>
-        <p id="source-feedback" class="muted" role="status">
-          Sign in to import your own invoices. Demo data remains available
-          without sign-in.
-        </p>
-      </section>
-      <div class="grid workflow-grid" id="agent" data-view="security">
-        <section class="panel">
-          <div class="heading">
-            <div>
-              <span class="label">02 / SET THE BOUNDARY</span>
-              <h3>Approve the work</h3>
-            </div>
-            <span id="plan-badge" class="pill">No active plan</span>
-          </div>
-          <label class="field-label" for="engine">Execution mode</label
-          ><select id="engine">
-            <option value="local">Local workspace · local policy</option>
-            <option value="armoriq">ArmorIQ · registered sandbox MCP</option>
-          </select>
-          <p id="engine-help" class="muted">
-            Runs against this workspace’s invoices. Local decisions are never
-            labeled as ArmorIQ verification.
-          </p>
-          <label class="field-label" for="tool">Permitted action</label
-          ><select id="tool">
-            <option value="summarize_overdue_invoices">
-              Summarize overdue invoices
-            </option>
-            <option value="list_invoices">List all invoices</option>
-            <option value="create_draft_payment_reminders">
-              Prepare reminder drafts
-            </option>
-            <option value="export_sandbox_reports">
-              Export invoice report
-            </option>
-          </select>
-          <div class="plan-step">
-            <span>01</span>
-            <div>
-              <b id="plan-tool">summarize_overdue_invoices</b>
-              <p>No refunds, transfers, or deletion included.</p>
-            </div>
-            <span class="scope">LIMITED SCOPE</span>
-          </div>
-          <button id="approve" class="primary">Approve selected plan ↗</button
-          ><button id="run">Run approved action →</button>
-          <div class="divider"></div>
-          <div class="heading">
-            <span class="label">TEST THE BOUNDARY</span
-            ><span class="pill">Simulation only</span>
-          </div>
-          <div class="actions">
-            <button id="refund" class="danger">Attempt refund</button
-            ><button id="transfer" class="danger">Attempt transfer</button
-            ><button id="delete" class="danger">Attempt deletion</button>
-          </div>
-          <div class="scope-flow" aria-label="Security workflow">
-            <span>01 · Approved intent</span><span>02 · Permission check</span
-            ><span>03 · MCP execution</span>
-          </div>
-          <div id="result" role="status">
-            Approve a plan to begin. No action has executed.
-          </div>
+          <button class="primary" data-open-sources>＋ Add invoices</button>
         </section>
-        <section class="panel agent-panel">
-          <div class="heading">
+        <p id="storage-notice" class="storage-notice" role="status" hidden>
+          Hosted preview: uploads and approvals use temporary storage and may
+          reset. Keep your source file.
+        </p>
+        <section class="metrics" data-view="invoices">
+          <article>
+            <span>Total invoices</span>
+            <h2 id="total-invoices">—</h2>
+            <p>Records in this workspace</p>
+          </article>
+          <article>
+            <span>Outstanding</span>
+            <h2 id="outstanding-amount">—</h2>
+            <p>Pending and overdue invoices</p>
+          </article>
+          <article class="overdue-metric">
+            <span>Overdue <i class="dot"></i></span>
+            <h2 id="amount">—</h2>
+            <p><b id="count">—</b> invoices need attention</p>
+          </article>
+          <article>
+            <span>Paid</span>
+            <h2 id="paid-amount">—</h2>
+            <p id="paid-count">— paid invoices</p>
+          </article>
+        </section>
+        <section class="source-strip" data-view="invoices">
+          <div class="source-icon">▤</div>
+          <div class="source-copy">
+            <b id="source-label">Invoice source: sample</b
+            ><span id="linked-status"
+              >Start with your invoice export. No gateway account needed.</span
+            >
+          </div>
+          <button id="refresh-file" hidden>↻ Refresh file</button
+          ><button class="subtle" data-open-sources>Manage source</button>
+        </section>
+        <section class="panel ledger" id="invoices" data-view="invoices">
+          <div class="ledger-top">
             <div>
-              <span class="label">03 / PUT IT TO WORK</span>
-              <h3>Finance assistant</h3>
-            </div>
-            <span class="agent-orb">✦</span>
-          </div>
-          <p class="muted">
-            Ask for the work you approved. Requests outside that plan stop at
-            the execution boundary.
-          </p>
-          <div id="messages" aria-live="polite">
-            <div class="bubble">
-              Start with “Summarize overdue invoices.” To prepare drafts, select
-              and approve that action first.
-            </div>
-          </div>
-          <div class="suggestions">
-            <button data-message="Summarize overdue invoices">
-              Summarize overdue</button
-            ><button data-message="Draft payment reminders">
-              Prepare drafts</button
-            ><button data-message="Refund an invoice">
-              Test refund boundary
-            </button>
-          </div>
-          <form id="chat">
-            <label class="sr-only" for="request">Finance request</label
-            ><input
-              id="request"
-              placeholder="Ask about your invoices…"
-              required
-              maxlength="2000"
-            /><button class="primary" aria-label="Send request">↑</button>
-          </form>
-          <small class="agent-note"
-            >Command-based workflow · AI model and voice are not
-            connected</small
-          >
-          <div class="verification-box">
-            <span id="verify-icon">◇</span>
-            <div>
-              <b id="verified-title">Awaiting execution</b>
-              <p id="verified-text">
-                Verification status comes from the selected execution engine.
+              <h3>
+                All invoices
+                <span id="invoice-count" class="count-badge"></span>
+              </h3>
+              <p id="date-note" class="muted">
+                Loading your invoice workspace…
               </p>
             </div>
+            <button id="export-invoices">↓ Export CSV</button>
+          </div>
+          <div class="table-toolbar">
+            <div class="filters" role="group" aria-label="Invoice status">
+              <button data-filter="all" class="selected">All invoices</button
+              ><button data-filter="overdue">Overdue</button
+              ><button data-filter="pending">Pending</button
+              ><button data-filter="paid">Paid</button>
+            </div>
+            <div class="table-tools">
+              <label class="search-box"
+                ><span>⌕</span
+                ><input
+                  id="invoice-search"
+                  type="search"
+                  placeholder="Search invoices or customers"
+                  aria-label="Search invoices or customers" /></label
+              ><select id="invoice-sort" aria-label="Sort invoices">
+                <option value="due">Due date ↑</option>
+                <option value="amount">Amount ↓</option>
+                <option value="customer">Customer A–Z</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Invoice / customer</th>
+                  <th>Amount <small>INR</small></th>
+                  <th>Due date</th>
+                  <th>Status</th>
+                  <th>Overdue by</th>
+                  <th><span class="sr-only">Details</span></th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <span id="visible-count">Loading records…</span
+            ><span>Click an invoice to view its details ↗</span>
           </div>
         </section>
-      </div>
-      <section class="panel ledger" id="invoices" data-view="invoices">
-        <div class="heading">
+        <section class="assistant-callout" data-view="invoices">
+          <div class="assistant-spark">✧</div>
           <div>
-            <span class="label">WORKSPACE DATA</span>
-            <h3>Invoice ledger <span id="invoice-count"></span></h3>
+            <b>A little help with the follow-up?</b>
+            <p>
+              Review overdue invoices, prepare reminder drafts, or create a
+              report.
+            </p>
           </div>
-          <div class="filters">
-            <button data-filter="all" class="selected">All</button
-            ><button data-filter="overdue">Overdue</button
-            ><button data-filter="paid">Paid</button>
-          </div>
-        </div>
-        <p id="date-note" class="muted">
-          Sample invoice dates and statuses are a fixed demo snapshot.
-        </p>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Invoice / customer</th>
-                <th>Amount</th>
-                <th>Due date</th>
-                <th>Status</th>
-                <th>Days overdue</th>
-              </tr>
-            </thead>
-            <tbody id="rows"></tbody>
-          </table>
-        </div>
-      </section>
-      <section class="panel" id="audit" data-view="audit">
-        <div class="heading">
+          <button id="overview-run">Review overdue →</button>
+        </section>
+        <section class="page-heading" data-view="security">
           <div>
-            <span class="label">04 / INSPECT THE EVIDENCE</span>
-            <h3>Application action trail</h3>
+            <span class="eyebrow">YOU APPROVE. YOUR ASSISTANT ACTS.</span>
+            <h1>Invoice assistant</h1>
+            <p>
+              Choose one task, approve access, then run it against your
+              invoices.
+            </p>
           </div>
-          <button id="download-audit">Download activity</button>
+          <a class="button-link" href="#invoices">Back to invoices</a>
+        </section>
+        <div class="grid workflow-grid" id="agent" data-view="security">
+          <section class="panel">
+            <div class="heading">
+              <div>
+                <span class="label">PERMISSION</span>
+                <h3>What may your assistant do?</h3>
+              </div>
+              <span id="plan-badge" class="pill">No active plan</span>
+            </div>
+            <label class="field-label" for="engine">Execution mode</label
+            ><select id="engine">
+              <option value="local">Local workspace · local policy</option>
+              <option value="armoriq">ArmorIQ · registered sandbox MCP</option>
+            </select>
+            <p id="engine-help" class="muted">
+              Runs against this workspace’s invoices. Local decisions are never
+              labeled as ArmorIQ verification.
+            </p>
+            <label class="field-label" for="tool">Permitted action</label
+            ><select id="tool">
+              <option value="summarize_overdue_invoices">
+                Summarize overdue invoices
+              </option>
+              <option value="list_invoices">List all invoices</option>
+              <option value="create_draft_payment_reminders">
+                Prepare reminder drafts
+              </option>
+              <option value="export_sandbox_reports">
+                Export invoice report
+              </option>
+            </select>
+            <div class="plan-step">
+              <span>01</span>
+              <div>
+                <b id="plan-tool">summarize_overdue_invoices</b>
+                <p>No refunds, transfers, or deletion included.</p>
+              </div>
+              <span class="scope">LIMITED SCOPE</span>
+            </div>
+            <button id="approve" class="primary">Approve selected plan ↗</button
+            ><button id="run">Run approved action →</button>
+            <details class="boundary-test">
+              <summary>Test a blocked action</summary>
+              <div class="heading">
+                <span class="label">TEST THE BOUNDARY</span
+                ><span class="pill">Simulation only</span>
+              </div>
+              <div class="actions">
+                <button id="refund" class="danger">Attempt refund</button
+                ><button id="transfer" class="danger">Attempt transfer</button
+                ><button id="delete" class="danger">Attempt deletion</button>
+              </div>
+            </details>
+            <div class="scope-flow" aria-label="Security workflow">
+              <span>01 · Approved intent</span><span>02 · Permission check</span
+              ><span>03 · MCP execution</span>
+            </div>
+            <div id="result" role="status">
+              Approve a plan to begin. No action has executed.
+            </div>
+          </section>
+          <section class="panel agent-panel">
+            <div class="heading">
+              <div>
+                <span class="label">INVOICE ASSISTANT</span>
+                <h3>Work through your receivables</h3>
+              </div>
+              <span class="agent-orb">✦</span>
+            </div>
+            <p class="muted">
+              Ask for the work you approved. Requests outside that plan stop at
+              the execution boundary.
+            </p>
+            <div id="messages" aria-live="polite">
+              <div class="bubble">
+                Start with “Summarize overdue invoices.” To prepare drafts,
+                select and approve that action first.
+              </div>
+            </div>
+            <div class="suggestions">
+              <button data-message="Summarize overdue invoices">
+                Summarize overdue</button
+              ><button data-message="Draft payment reminders">
+                Prepare drafts</button
+              ><button data-message="Refund an invoice">
+                Test refund boundary
+              </button>
+            </div>
+            <form id="chat">
+              <label class="sr-only" for="request">Finance request</label
+              ><input
+                id="request"
+                placeholder="Ask about your invoices…"
+                required
+                maxlength="2000"
+              /><button class="primary" aria-label="Send request">↑</button>
+            </form>
+            <small class="agent-note"
+              >Command-based workflow · AI model and voice are not
+              connected</small
+            >
+            <div class="verification-box">
+              <span id="verify-icon">◇</span>
+              <div>
+                <b id="verified-title">Awaiting execution</b>
+                <p id="verified-text">
+                  Verification status comes from the selected execution engine.
+                </p>
+              </div>
+            </div>
+          </section>
         </div>
-        <p class="muted">
-          Each row names the decision source. Application event IDs are local;
-          SDK session/trace IDs and ingestion receipts are shown separately when
-          available.
-        </p>
-        <div class="audit-controls">
-          <label for="audit-filter">Filter activity</label
-          ><select id="audit-filter">
-            <option value="all">All activity</option>
-            <option value="ALLOWED">Allowed</option>
-            <option value="BLOCKED">Blocked</option>
-            <option value="ERROR">Errors</option>
-          </select>
-        </div>
-        <div id="events"></div>
-      </section>
-      <footer class="creator-credit">
-        <div>
-          <b>FinanceGuard</b
+
+        <section class="page-heading" data-view="audit">
+          <div>
+            <span class="eyebrow">A CLEAR RECORD OF WHAT HAPPENED</span>
+            <h1>Activity</h1>
+            <p>
+              See completed work, approvals, and requests that were stopped.
+            </p>
+          </div>
+          <button id="download-audit">↓ Download activity</button>
+        </section>
+        <section class="metrics activity-metrics" data-view="audit">
+          <article>
+            <span>Completed actions</span>
+            <h2 id="approved-count">0</h2>
+          </article>
+          <article>
+            <span>Blocked requests</span>
+            <h2 id="blocked">0</h2>
+          </article>
+          <article>
+            <span>ArmorIQ SDK verified</span>
+            <h2 id="verified-count">0</h2>
+            <p>Real provider responses only</p>
+          </article>
+        </section>
+        <section class="panel" id="audit" data-view="audit">
+          <div class="heading">
+            <h3>Workspace activity</h3>
+            <div class="audit-controls">
+              <label class="sr-only" for="audit-filter">Filter activity</label
+              ><select id="audit-filter">
+                <option value="all">All activity</option>
+                <option value="ALLOWED">Allowed</option>
+                <option value="BLOCKED">Blocked</option>
+                <option value="ERROR">Errors</option>
+              </select>
+            </div>
+          </div>
+          <p class="muted">
+            Each event names its decision source. Expand trace details to
+            inspect ArmorIQ delivery evidence when available.
+          </p>
+          <div id="events"></div>
+        </section>
+        <details class="connection-details">
+          <summary>Connection &amp; verification status</summary>
+          <div class="connection">
+            <span id="connection">Connecting…</span
+            ><span id="armoriq-connection"
+              >ArmorIQ: checking configuration</span
+            >
+          </div>
+        </details>
+        <footer class="creator-credit">
+          <span
+            >FinanceGuard <span class="footer-separator">/</span> Your invoices.
+            Your permission.</span
           ><span
-            >Approved actions execute. Unauthorized actions get blocked.</span
+            >Built by <strong>Anuj A Shetty &amp; Yuvraj Singh</strong></span
           >
-        </div>
-        <div class="creator-signature">
-          <span>DESIGNED &amp; BUILT BY</span
-          ><strong>Anuj A Shetty <i>&amp;</i> Yuvraj Singh</strong>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </main>
+    <dialog id="sources">
+      <div class="heading">
+        <div>
+          <span class="eyebrow">BRING YOUR INVOICES</span>
+          <h3>Add an invoice source</h3>
+        </div>
+        <button data-close="sources" aria-label="Close">✕</button>
+      </div>
+      <p class="muted">
+        Use a CSV export from your spreadsheet or accounting app. All amounts
+        must be INR.
+      </p>
+      <div class="source-grid">
+        <article>
+          <span class="source-symbol">↻</span>
+          <h4>Link an invoice file</h4>
+          <p>
+            Choose a CSV on your device. After updating it, click Refresh file
+            to review the latest records.
+          </p>
+          <button id="link-file" class="primary">Choose file to link</button
+          ><small
+            >Available in supported desktop browsers. Reconnect after reloading
+            or changing accounts.</small
+          >
+        </article>
+        <article>
+          <span class="source-symbol">↑</span>
+          <h4>Import a CSV</h4>
+          <p>
+            Upload an invoice export, check the preview, then confirm. Works
+            without a gateway account.
+          </p>
+          <label class="file-button"
+            >Choose CSV<input
+              type="file"
+              id="csv"
+              accept=".csv,text/csv" /></label
+          ><a href="/api/template">Download CSV template ↗</a>
+        </article>
+        <article>
+          <span class="source-symbol">▤</span>
+          <h4>Just exploring?</h4>
+          <p>
+            Try five sample invoices and the complete approval workflow before
+            bringing your data.
+          </p>
+          <button id="sample">Use sample invoices</button
+          ><small
+            >Replaces this workspace’s imported data after confirmation.</small
+          >
+        </article>
+      </div>
+      <details class="import-help">
+        <summary>How do I get invoices from my current app?</summary>
+        <ol>
+          <li>
+            Export your invoice list as CSV from your accounting app, or
+            download your spreadsheet as CSV.
+          </li>
+          <li>
+            Include invoice number, customer, amount in INR, due date
+            (YYYY-MM-DD), and status (unpaid, pending, overdue, paid, draft,
+            void, or uncollectible).
+          </li>
+          <li>
+            Link or upload the CSV here. Preview and confirm before your
+            workspace changes.
+          </li>
+        </ol>
+        <p>
+          Common headings such as Invoice Number, Customer, Amount, Due Date and
+          Status are supported. This is a file connection; private account and
+          Google Sheets live sync are not connected. You do not need to publish
+          your financial data.
+        </p>
+      </details>
+      <p id="source-feedback" class="muted" role="status">
+        Sign in to import your own invoices. Sample data is available without
+        sign-in.
+      </p>
+    </dialog>
     <dialog id="account">
       <div class="heading">
         <div>
@@ -355,6 +474,21 @@
       </p>
       <button id="confirm-import" class="primary">Confirm import</button
       ><button data-close="import-preview">Cancel</button>
+    </dialog>
+
+    <dialog id="invoice-detail">
+      <div class="heading">
+        <div>
+          <span class="eyebrow">INVOICE DETAILS</span>
+          <h3 id="detail-id"></h3>
+        </div>
+        <button data-close="invoice-detail" aria-label="Close">✕</button>
+      </div>
+      <div id="detail-content"></div>
+      <div class="detail-actions">
+        <button id="detail-reminder">Prepare reminder draft →</button
+        ><button data-close="invoice-detail">Done</button>
+      </div>
     </dialog>
     <div id="toast" role="status" aria-live="polite" hidden></div>
     <script type="module" src="/assets/app.js"></script>

@@ -53,16 +53,20 @@ invent tracing endpoints or append /observability/spans to a base URL variable.
 
 ## Current external blocker (October 16)
 
-The actual local bootstrap still returns org
-50bcbee3-3d3f-48cb-8331-61e2b89e607d, not the target org. Its finance-mcp URL is
-the old stopped temporary Cloudflare origin. The updated CLI exits nonzero with
-that exact configuration mismatch before executing tools. New live ingestion
-and console visibility are not yet confirmed.
+The latest local key passes authenticated bootstrap for the target organization
+68c3541d-e2d8-462a-8393-243925a5ed23. Public discovery at
+https://financeguard-armoriq.vercel.app/mcp returns eight tools, and invoice
+access without a credential is denied. Registration of that URL still returns
+HTTP 500 through both the installed SDK and the actual console. The registry
+still references an unreachable ngrok origin. Vercel also needs its prepared
+private Production environment settings imported and a redeploy. New live
+ingestion and console visibility are not yet confirmed. See
+MCP-CONNECTION-STATUS.md for the latest evidence and a support-note draft.
 
 ## Prove delivery and visibility
 
-1. Privately install a replacement key from the target organization locally and
-   in Vercel Production, then redeploy after changing Vercel environment values.
+1. Keep the currently authenticated target-organization key locally; install
+   the private Production environment settings in Vercel and redeploy.
 2. Keep the actual MCP origin reachable and update its registration/URL.
 3. Run tools/check_setup.py; all identity/registry/discovery checks must pass.
 4. Run run_financeguard_demo.py. Require actual safe success and SDK denial.

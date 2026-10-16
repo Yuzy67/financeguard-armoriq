@@ -3,6 +3,7 @@ import csv
 import io
 import json
 import os
+import re
 import sqlite3
 import tempfile
 from datetime import date, datetime, timezone
@@ -61,11 +62,28 @@ def normalize(raw,number):
 def preview(text):
     reader=csv.DictReader(io.StringIO(text.lstrip('\ufeff')))
     required={'invoice_id','customer_name','amount_inr','due_date','status'}
-    if not reader.fieldnames or not required.issubset(reader.fieldnames):raise ValueError('Required columns: '+', '.join(sorted(required)))
+    aliases={
+        'invoice_id':{'invoice_id','invoice_number','invoice_no','invoice'},
+        'customer_name':{'customer_name','customer','client','client_name'},
+        'amount_inr':{'amount_inr','amount','total','total_inr','invoice_amount'},
+        'due_date':{'due_date','payment_due_date','due'},
+        'status':{'status','invoice_status','payment_status'},
+        'currency':{'currency','currency_code'},
+    }
+    columns={}
+    for field in reader.fieldnames or []:
+        normalized=re.sub(r'[^a-z0-9]+','_',field.strip().lower()).strip('_')
+        key=next((key for key,names in aliases.items() if normalized in names),None)
+        if key:
+            if key in columns:raise ValueError(f'Ambiguous columns for {key}. Keep only one matching column.')
+            columns[key]=field
+    if not required.issubset(columns):raise ValueError('Required columns: '+', '.join(sorted(required))+'. Common headings such as Invoice Number, Customer, Amount and Due Date also work.')
     rows=[];seen=set()
     for number,raw in enumerate(reader,2):
         if len(rows)>=500:raise ValueError('Maximum 500 invoices per import.')
-        row=normalize(raw,number)
+        mapped={key:raw.get(field) for key,field in columns.items()}
+        if 'currency' in mapped and str(mapped['currency'] or '').strip().upper()!='INR':raise ValueError(f'Row {number}: only INR invoices are supported. Other currencies cannot be relabeled as INR.')
+        row=normalize(mapped,number)
         if row['invoice_id'] in seen:raise ValueError(f'Row {number}: duplicate invoice ID.')
         seen.add(row['invoice_id']);rows.append(row)
     if not rows:raise ValueError('No invoice rows found.')

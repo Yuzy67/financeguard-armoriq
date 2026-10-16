@@ -13,5 +13,7 @@ node_modules/
 .vercel/
 .pytest_cache/
 *.log
+.playwright-cli/
+output/playwright/
 # Keep rendered media outside the source repository.
 docs/demo/*.mp4

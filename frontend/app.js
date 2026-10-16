@@ -13,6 +13,9 @@ let state = null,
   pendingCSV = "",
   revision = 0,
   authReady = false;
+let linkedFile = null,
+  pendingHandle = null,
+  pendingRevision = -1;
 const $all = (s) => document.querySelectorAll(s);
 function el(tag, text, cls) {
   const node = document.createElement(tag);
@@ -69,13 +72,16 @@ function toast(text, kind = "info") {
   toastTimer = setTimeout(() => (node.hidden = true), 6500);
 }
 function route() {
-  const aliases = { home: "overview", sources: "invoices", agent: "security" },
+  const aliases = {
+      home: "invoices",
+      overview: "invoices",
+      sources: "invoices",
+      agent: "security",
+    },
     hash = location.hash.slice(1);
   const active =
     aliases[hash] ||
-    (["overview", "invoices", "security", "audit"].includes(hash)
-      ? hash
-      : "overview");
+    (["invoices", "security", "audit"].includes(hash) ? hash : "invoices");
   $all("[data-view]").forEach(
     (node) => (node.hidden = node.dataset.view !== active),
   );
@@ -88,8 +94,8 @@ function route() {
   $("#page-title").textContent = {
     overview: "Overview",
     invoices: "Invoices",
-    security: "Security",
-    audit: "Audit Log",
+    security: "Assistant & permissions",
+    audit: "Activity",
   }[active];
 }
 const traceStatus = el(
@@ -173,6 +179,27 @@ function render() {
       upload: "Your CSV import",
       stripe_sandbox: "Stripe sandbox",
     }[state.source] || state.source);
+  $("#linked-status").textContent =
+    linkedFile && state.source === "upload"
+      ? linkedFile.name +
+        " · Connected for this session. Refresh to preview changes."
+      : state.source === "upload"
+        ? "Imported snapshot · Upload again or link a file to refresh your records."
+        : "Example records · Add your own invoice export when you’re ready.";
+  $("#refresh-file").hidden = !linkedFile || state.source !== "upload";
+  $("#nav-count").textContent = state.invoices.length;
+  $("#total-invoices").textContent = state.invoices.length;
+  $("#outstanding-amount").textContent = money(
+    state.invoices
+      .filter((i) => ["unpaid", "pending", "overdue"].includes(i.status))
+      .reduce((sum, i) => sum + i.amount_inr, 0),
+  );
+  const paid = state.invoices.filter((i) => i.status === "paid");
+  $("#paid-amount").textContent = money(
+    paid.reduce((sum, i) => sum + i.amount_inr, 0),
+  );
+  $("#paid-count").textContent =
+    paid.length + (paid.length === 1 ? " paid invoice" : " paid invoices");
   if (
     $("#source-feedback").textContent.startsWith("Sign in to import") &&
     state.user.signed_in
@@ -196,7 +223,8 @@ function render() {
       Math.max(0, Math.ceil((plan.expires - Date.now() / 1000) / 60)) +
       " min"
     : "No active plan";
-  $("#plan-tool").textContent = $("#tool").value;
+  $("#plan-tool").textContent =
+    $("#tool").selectedOptions[0].textContent.trim();
   $("#run").disabled = busy || !plan;
   $("#approve").disabled = busy;
   $("#invoice-count").textContent = "(" + state.invoices.length + ")";
@@ -209,27 +237,52 @@ function render() {
       ? "Backend credentials configured · operator-only test sync"
       : "Not configured · sandbox key required on backend";
   $("#rows").replaceChildren();
-  for (const i of state.invoices.filter(
-    (i) => filter === "all" || i.status === filter,
-  )) {
+  const search = $("#invoice-search").value.trim().toLocaleLowerCase();
+  const visible = state.invoices.filter(
+    (i) =>
+      (filter === "all" || i.status === filter) &&
+      (i.invoice_id + " " + i.customer_name)
+        .toLocaleLowerCase()
+        .includes(search),
+  );
+  const sort = $("#invoice-sort").value;
+  visible.sort((a, b) =>
+    sort === "amount"
+      ? b.amount_inr - a.amount_inr
+      : sort === "customer"
+        ? a.customer_name.localeCompare(b.customer_name)
+        : a.due_date.localeCompare(b.due_date),
+  );
+  $("#visible-count").textContent =
+    `Showing ${visible.length} of ${state.invoices.length} invoices`;
+  for (const i of visible) {
     const row = el("tr", ""),
-      name = el("td", i.invoice_id);
+      name = el("td", "");
+    const invoiceButton = el("button", i.invoice_id, "invoice-link");
+    invoiceButton.onclick = () => openInvoice(i);
+    name.append(invoiceButton);
     name.append(el("small", i.customer_name));
     const cell = el("td", "");
     cell.append(el("span", i.status, "status " + i.status));
     row.append(
       name,
       el("td", money(i.amount_inr)),
-      el("td", i.due_date),
+      el("td", formatDate(i.due_date)),
       cell,
-      el("td", String(i.days_overdue)),
+      el("td", i.days_overdue ? i.days_overdue + " days" : "—"),
     );
+    const detailCell = el("td", ""),
+      detailButton = el("button", "↗", "row-arrow");
+    detailButton.setAttribute("aria-label", "View " + i.invoice_id);
+    detailButton.onclick = () => openInvoice(i);
+    detailCell.append(detailButton);
+    row.append(detailCell);
     $("#rows").append(row);
   }
   if (!$("#rows").children.length) {
     const tr = el("tr", "");
     const td = el("td", "No invoices match this filter.");
-    td.colSpan = 5;
+    td.colSpan = 6;
     tr.append(td);
     $("#rows").append(tr);
   }
@@ -359,17 +412,21 @@ function outcome(data) {
   toast(data.reason || data.status, kind);
   const message = bubble(data.status + " · " + (data.reason || ""));
   $("#verified-title").textContent =
-    data.verified === true
-      ? "Intent verified"
-      : data.status === "BLOCKED"
-        ? "Request blocked"
-        : "Local / unverified result";
+    data.status === "APPROVED"
+      ? "Permission approved"
+      : data.verified === true
+        ? "Intent verified"
+        : data.status === "BLOCKED"
+          ? "Request blocked"
+          : "Local / unverified result";
   $("#verified-text").textContent =
-    data.verified === true
-      ? "ArmorIQ SDK returned verified=True for this execution."
-      : data.event?.engine === "LOCAL_POLICY"
-        ? "Local plan enforced. No ArmorIQ verification claimed."
-        : data.reason || "No verified execution.";
+    data.status === "APPROVED"
+      ? "Ready to run the approved task. No invoice tool has executed yet."
+      : data.verified === true
+        ? "ArmorIQ SDK returned verified=True for this execution."
+        : data.event?.engine === "LOCAL_POLICY"
+          ? "Local plan enforced. No ArmorIQ verification claimed."
+          : data.reason || "No verified execution.";
   if (data.result) {
     const result = data.result;
     if (result.overdue_invoice_count !== undefined)
@@ -493,7 +550,16 @@ $all("[data-filter]").forEach(
 );
 $("#sample").onclick = () =>
   task(async () => {
+    if (
+      state?.source !== "sample" &&
+      !window.confirm(
+        "Replace your imported invoices with the sample dataset? Existing approvals will be cleared.",
+      )
+    )
+      return;
     await api("/api/source/sample", {});
+    linkedFile = null;
+    $("#sources").close();
     $("#source-feedback").textContent =
       "Sample invoices loaded. Prior plans cleared.";
   });
@@ -503,34 +569,98 @@ if ($("#stripe"))
       const d = await api("/api/source/stripe", {});
       $("#source-feedback").textContent = `Synced ${d.count} test invoices.`;
     });
-$("#csv").onchange = () =>
-  task(async () => {
-    pendingCSV = "";
-    const file = $("#csv").files[0];
-    if (!file) return;
-    if (file.size > 650000) throw Error("Use a CSV smaller than 650 KB.");
-    const csv = await file.text();
-    const d = await api("/api/import", { csv });
-    pendingCSV = csv;
-    $("#preview-info").textContent =
-      `${d.count} invoices validated. Showing the first five.`;
-    $("#preview-rows").replaceChildren();
-    for (const row of d.invoices.slice(0, 5))
-      $("#preview-rows").append(
-        el(
-          "p",
-          `${row.invoice_id} · ${row.customer_name} · ${money(row.amount_inr)} · ${row.status}`,
-        ),
+async function previewFile(file, handle = null) {
+  pendingCSV = "";
+  pendingHandle = null;
+  pendingRevision = -1;
+  const version = revision;
+  if (file.size > 650000) throw Error("Use a CSV smaller than 650 KB.");
+  const csv = await file.text();
+  const d = await api("/api/import", { csv });
+  if (version !== revision)
+    throw Error("Account changed. Select the file again.");
+  pendingCSV = csv;
+  pendingHandle = handle;
+  pendingRevision = version;
+  $("#preview-info").textContent =
+    `${file.name} · ${d.count} invoices · All amounts INR. Showing the first five. Confirming replaces the current workspace snapshot.`;
+  $("#preview-rows").replaceChildren();
+  for (const row of d.invoices.slice(0, 5))
+    $("#preview-rows").append(
+      el(
+        "p",
+        `${row.invoice_id} · ${row.customer_name} · ${money(row.amount_inr)} · ${row.status}`,
+      ),
+    );
+  $("#sources").close();
+  $("#import-preview").showModal();
+}
+$("#csv").onchange = () => {
+  const file = $("#csv").files[0];
+  $("#csv").value = "";
+  if (file) task(() => previewFile(file));
+};
+$("#link-file").onclick = async () => {
+  if (busy) return;
+  if (!state?.user.signed_in) {
+    $("#sources").close();
+    $("#account").showModal();
+    toast("Sign in before connecting your own invoices.");
+    return;
+  }
+  if (!("showOpenFilePicker" in window)) {
+    toast(
+      "File linking is unavailable in this browser. Choose CSV to import a snapshot instead.",
+    );
+    return;
+  }
+  try {
+    const version = revision;
+    const [handle] = await window.showOpenFilePicker({
+      multiple: false,
+      types: [{ description: "Invoice CSV", accept: { "text/csv": [".csv"] } }],
+    });
+    if (version !== revision) return;
+    await task(async () => previewFile(await handle.getFile(), handle));
+  } catch (error) {
+    if (error.name !== "AbortError")
+      toast(
+        "Could not open the file. Choose CSV to import it instead.",
+        "error",
       );
-    $("#import-preview").showModal();
+  }
+};
+$("#refresh-file").onclick = () =>
+  task(async () => {
+    const handle = linkedFile;
+    if (!handle) throw Error("Link your invoice file first.");
+    try {
+      await previewFile(await handle.getFile(), handle);
+    } catch (error) {
+      if (["NotAllowedError", "NotFoundError"].includes(error.name))
+        throw Error(
+          "File access expired or the file moved. Reconnect it through Manage source.",
+        );
+      throw error;
+    }
   });
 $("#confirm-import").onclick = () =>
   task(async () => {
+    if (!pendingCSV || pendingRevision !== revision)
+      throw Error("Preview your file again before importing.");
+    const version = revision,
+      handle = pendingHandle;
     const d = await api("/api/import", { csv: pendingCSV, confirm: true });
+    if (version !== revision) return;
+    linkedFile = handle;
     $("#import-preview").close();
     pendingCSV = "";
+    pendingHandle = null;
+    pendingRevision = -1;
     $("#source-feedback").textContent =
       `Imported ${d.count} invoices. Approve a new plan to use them.`;
+    toast(`Imported ${d.count} invoices. Your workspace is ready.`, "success");
+    location.hash = "invoices";
   });
 $("#download-audit").onclick = () =>
   task(async () =>
@@ -546,13 +676,89 @@ $("#overview-run").onclick = () => {
   location.hash = "security";
   $("#run").click();
 };
-$("#overview-refund").onclick = () => {
-  location.hash = "security";
-  if (!state?.plans[$("#engine").value]) {
-    toast("Approve a summary plan before testing its refund boundary.");
-    return;
+$("#invoice-search").oninput = render;
+$("#invoice-sort").onchange = render;
+$all("[data-open-sources]").forEach(
+  (button) => (button.onclick = () => $("#sources").showModal()),
+);
+function formatDate(value) {
+  const date = new Date(value + "T00:00:00");
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+}
+function openInvoice(invoice) {
+  $("#detail-id").textContent = invoice.invoice_id;
+  const content = $("#detail-content");
+  content.replaceChildren();
+  content.append(
+    el("p", money(invoice.amount_inr), "detail-amount"),
+    el("span", invoice.status, "status " + invoice.status),
+  );
+  const list = el("dl", "", "detail-grid");
+  for (const [label, value] of [
+    ["Customer", invoice.customer_name],
+    ["Due date", formatDate(invoice.due_date)],
+    ["Days overdue", invoice.days_overdue || "—"],
+    [
+      "Source",
+      state.source === "sample" ? "Sample data" : "Imported invoice snapshot",
+    ],
+  ]) {
+    const group = el("div", "");
+    group.append(el("dt", label), el("dd", String(value)));
+    list.append(group);
   }
-  $("#refund").click();
+  content.append(
+    list,
+    el(
+      "p",
+      "Reminder drafts require approval and cover all overdue invoices. No email is sent.",
+      "muted",
+    ),
+  );
+  $("#detail-reminder").hidden = invoice.status !== "overdue";
+  $("#invoice-detail").showModal();
+}
+$("#detail-reminder").onclick = () => {
+  $("#invoice-detail").close();
+  location.hash = "security";
+  $("#tool").value = "create_draft_payment_reminders";
+  render();
+  toast("Review and approve reminder drafts for your overdue invoices.");
+};
+function csvCell(value) {
+  let text = String(value);
+  if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+  return '"' + text.replaceAll('"', '""') + '"';
+}
+$("#export-invoices").onclick = () => {
+  if (!state) return;
+  const fields = [
+    "invoice_id",
+    "customer_name",
+    "amount_inr",
+    "due_date",
+    "status",
+  ];
+  const csv = [
+    fields.join(","),
+    ...state.invoices.map((row) =>
+      fields.map((key) => csvCell(row[key])).join(","),
+    ),
+  ].join("\r\n");
+  const url = URL.createObjectURL(
+    new Blob([csv], { type: "text/csv;charset=utf-8" }),
+  );
+  const a = el("a", "");
+  a.href = url;
+  a.download = "financeguard-invoices.csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 $all("[data-close]").forEach(
   (b) => (b.onclick = () => document.getElementById(b.dataset.close).close()),
@@ -624,11 +830,15 @@ async function initializeAuth() {
       user = next;
       state = null;
       pendingCSV = "";
+      linkedFile = null;
+      pendingHandle = null;
+      pendingRevision = -1;
       accountSignout.hidden = !next;
       verifyEmail.hidden = !next || next.emailVerified;
       $("#account-form").hidden = !!next;
       $("#preview-rows").replaceChildren();
       if ($("#import-preview").open) $("#import-preview").close();
+      if ($("#invoice-detail").open) $("#invoice-detail").close();
       $("#rows").replaceChildren();
       $("#events").replaceChildren();
       $("#messages").replaceChildren();
@@ -641,6 +851,7 @@ async function initializeAuth() {
         : "Sign in or create an account.";
       if (next && $("#account").open) $("#account").close();
       try {
+        if (!next) await api("/api/demo", {});
         await refresh();
       } catch (e) {
         $("#connection").textContent = e.message;

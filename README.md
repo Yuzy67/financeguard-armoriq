@@ -24,6 +24,13 @@ rejected by SDK intent binding before the proxy invocation.
 The request panel uses deterministic command routing. No general LLM, voice,
 payment gateway, bank account, or customer payment-provider OAuth is connected.
 
+The workspace opens directly to the invoice inventory: search by customer or
+invoice, filter statuses, sort, inspect details, and export CSV. Sign in to
+import an accounting/spreadsheet CSV, or link a local CSV file and explicitly
+refresh its snapshot. Each import is previewed and clears old approvals.
+See [invoice sources and limitations](docs/INVOICE-SOURCES.md). File linking
+does not connect a private Google Sheets or accounting-provider account.
+
 ## Demo
 
 - Useful action: `summarize_overdue_invoices`.
@@ -55,8 +62,9 @@ belong to Anuj's organization and predate the session instrumentation.
 
 The October 16 session implementation is tested with the installed production
 SDK and mocked provider HTTP. Those tests are not live ArmorIQ evidence.
-The local key still resolves to a different organization than the intended
-`68c3541d-e2d8-462a-8393-243925a5ed23`; the CLI refuses this mismatch.
+That earlier organization mismatch was resolved by the current key. Registration
+now fails with HTTP 500 through both SDK and console, despite successful public
+discovery. See [current connection evidence](docs/MCP-CONNECTION-STATUS.md).
 New live trace ingestion and console visibility must pass before recording
 or claiming a finished ArmorIQ demo. No traces or successful results are seeded.
 
