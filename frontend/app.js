@@ -825,6 +825,7 @@ async function initializeAuth() {
           "Verification email sent. After verifying, sign out and sign back in.";
       });
     sdk.onAuthStateChanged(auth, async (next) => {
+      const wasSignedIn = !!user;
       authReady = false;
       revision++;
       user = next;
@@ -851,7 +852,7 @@ async function initializeAuth() {
         : "Sign in or create an account.";
       if (next && $("#account").open) $("#account").close();
       try {
-        if (!next) await api("/api/demo", {});
+        if (!next && wasSignedIn) await api("/api/demo", {});
         await refresh();
       } catch (e) {
         $("#connection").textContent = e.message;

@@ -60,6 +60,11 @@ Maximum 500 invoices and a file smaller than 650 KB through the interface.
   table scrolls within its own container).
 - These checks do not prove ArmorIQ cloud verification; registration's HTTP
   500 remains separately documented in MCP-CONNECTION-STATUS.md.
+- The invoice UI deployed successfully and GitHub CI passed. A public browser
+  smoke check encountered "Start a demo or sign in" during approval: guest
+  identity and approvals are held in process memory and can disappear across
+  Vercel instances. Hosted action reliability is not confirmed; use the tested
+  local origin until shared session/storage and hosting settings are resolved.
 
 Official browser file-access reference:
 https://developer.chrome.com/docs/capabilities/web-apis/file-system-access
