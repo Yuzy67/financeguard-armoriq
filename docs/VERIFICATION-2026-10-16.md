@@ -31,3 +31,13 @@ Correct organization key locally and on Vercel; current healthy registered MCP
 origin; ingestion acceptance; actual console inspection; cross-device/network
 verification; 3-5 minute recording/upload and social publication. See
 SUBMISSION.md for exact unchecked gates. Do not fill missing links with examples.
+
+## Deployed verification after the repair
+
+GitHub Actions verify job passed on Ubuntu/Python 3.12, and Vercel reported the
+production deployment completed. The actual public UI passed summary approval,
+real MCP execution returning INR 88,000, refund blocking, and the source-labeled
+action trail. An existing Firebase test session was accepted by the backend.
+These deployed actions ran in LOCAL_POLICY mode, not ArmorIQ mode.
+The public health route returned HTTP 200 with armoriq_configured=false.
+That missing production key remains a real setup gate, not a verified cloud run.
