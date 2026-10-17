@@ -26,8 +26,9 @@ history, inline human approval, and the existing policy/MCP execution boundary.
 Configure OPENROUTER_API_KEY and OPENROUTER_MODEL privately on the backend.
 See [AI assistant setup and verification](docs/AI-ASSISTANT.md). Manual task
 controls remain available in Permissions; /api/command is explicitly legacy
-command routing. Voice, payment gateways, bank access and customer OAuth are
-not connected.
+command routing. Zoho OAuth and test-only Razorpay/Stripe invoice adapters are
+implemented locally; real provider account verification is pending. Voice, bank
+access and payment execution are not connected.
 
 The workspace opens directly to the invoice inventory: search by customer or
 invoice, filter statuses, sort, inspect details, and export CSV. Sign in to
@@ -52,6 +53,9 @@ does not connect a private Google Sheets or accounting-provider account.
 [Recording runbook](docs/DEMO-RECORDING.md) ·
 [Submission pack](docs/SUBMISSION.md) ·
 [Observability setup](docs/OBSERVABILITY.md)
+
+Latest verified findings, required variables, deployment approval steps and
+browser checks: [ArmorIQ integration diagnosis](docs/ARMORIQ-DIAGNOSIS.md).
 
 ## Current verification status
 
@@ -97,14 +101,19 @@ Open http://127.0.0.1:8001. No ArmorIQ key is needed for the sample/local mode.
 Use Firebase sign-in to preview/import a CSV. In Security, select local mode,
 approve the summary, run it, then attempt a refund and inspect Audit Log.
 
+For current live evidence and remaining blockers, see [October 17 integration report](docs/ARMORIQ-INTEGRATION-2026-10-17.md).
+
 For the real ArmorIQ path:
 
 1. Privately configure a replacement `ARMORIQ_API_KEY` for the intended org.
-2. Set `ARMORIQ_EXPECTED_ORG_ID`, `ARMORIQ_AGENT_ID`, and `MCP_SERVER_URL`.
+2. Set `ARMORIQ_EXPECTED_ORG_ID`, the confirmed existing `ARMORIQ_AGENT_ID`,
+   `ARMORIQ_MCP_SERVER_ID`, and `MCP_SERVER_URL`. Do not infer the agent ID from its display name.
 3. Start the standalone workspace MCP using `start-mcp.ps1` on port 8002.
 4. Expose only that MCP via a public HTTPS origin/tunnel. Keep the process up.
-5. Register/update the exact URL in the same organization:
+5. Inspect the existing registration without changing it:
    `.venv\Scripts\python.exe tools/register_mcp.py https://YOUR-HOST/mcp`.
+   This helper only prints a proposal. Obtain approval before changing the existing
+   remote URL or policy; never create duplicate records to work around an error.
 6. For this workspace-scoped origin set `FINANCEGUARD_SCOPED_MCP=1`. The app and
    standalone MCP must share the same local runtime/database/signing key.
 7. Run `.venv\Scripts\python.exe tools/check_setup.py` and resolve any drift.
@@ -160,9 +169,11 @@ may reset or differ across instances. Durable multi-instance hosting needs a
 shared store; Firebase web configuration alone does not provide one.
 
 A locally registered MCP reads local data. It cannot automatically read a
-separate Vercel instance's uploaded invoices. For judging, use the stable sample
-dataset on both sides, or run the entire scoped workflow on the same persistent
-backend. Do not claim cloud-upload parity until shared storage is verified.
+  separate Vercel instance's uploaded invoices. Run the scoped workflow on the
+  same persistent backend, or provide shared durable data, approval and revocation
+  state. A shared signing key alone is insufficient: unknown origin grants now
+  fail closed, including for sample data. Do not claim cloud-upload parity until
+  shared storage is verified.
 
 ## Hackathon
 
@@ -171,3 +182,11 @@ Built for Flow State by ArmorIQ. #FlowStateHackathon
 The official event page lists submissions closing October 17 and uses UTC,
 without an exact hour. Confirm the final form's timezone and deadline; the
 teammate-provided 11:59 PM IST must not be assumed from the public page.
+
+## Provider onboarding
+
+Three source choices: sample invoices, CSV, or provider connection. Zoho uses
+OAuth invoice READ consent; Razorpay and Stripe customer connectors accept test
+credentials only. See [setup, tutorials and verification limits](docs/PROVIDER-CONNECTIONS.md).
+Provider connections require a persistent backend and remain unavailable on the
+current temporary Vercel host. No live provider integration pass is claimed.

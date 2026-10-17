@@ -1,5 +1,7 @@
 # FinanceGuard MCP connection status - 16 October 2026
 
+> Historical findings below are dated. See the [October 17 live integration report](ARMORIQ-INTEGRATION-2026-10-17.md) for current configuration, evidence and blockers.
+
 ## Verified
 
 The current private key passes the SDK health check (HTTP 200) and authenticated
@@ -44,6 +46,6 @@ included in this report. We have not disabled TLS or host validation.
 The server implements invoice listing, invoice details, overdue summary,
 reminder drafts, and report export. Refund, transfer, and deletion tools remain
 disabled simulations. Sources are CSV imports or sample data, with no payment
-gateway or bank connection required. Shared signing supports hosted sample
-verification across function instances; uploaded data remains temporary and
-needs durable shared storage before production use.
+gateway or bank connection required. A shared signing key alone does not share active grants or invoice data. Unknown
+grants fail closed, including for sample data. Durable shared storage is required
+before claiming multi-instance execution works.

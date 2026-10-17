@@ -10,6 +10,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from uuid import uuid4
+from contextlib import contextmanager
 
 ROOT=Path(__file__).parent
 # Deployed source is read-only; Vercel only provides temporary scratch space.
@@ -18,11 +19,15 @@ DEFAULT_RUNTIME=Path(tempfile.gettempdir())/'financeguard' if TEMPORARY_STORAGE 
 RUNTIME=Path(os.environ.get('FINANCEGUARD_RUNTIME',str(DEFAULT_RUNTIME)))
 RUNTIME.mkdir(parents=True,exist_ok=True)
 
+@contextmanager
 def db():
     connection=sqlite3.connect(RUNTIME/'workspace.sqlite3',timeout=15)
-    connection.execute('CREATE TABLE IF NOT EXISTS invoices(owner TEXT PRIMARY KEY, source TEXT NOT NULL, payload TEXT NOT NULL)')
-    connection.execute('CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,owner TEXT NOT NULL,timestamp TEXT NOT NULL,payload TEXT NOT NULL)')
-    return connection
+    try:
+        with connection:
+            connection.execute('CREATE TABLE IF NOT EXISTS invoices(owner TEXT PRIMARY KEY, source TEXT NOT NULL, payload TEXT NOT NULL)')
+            connection.execute('CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,owner TEXT NOT NULL,timestamp TEXT NOT NULL,payload TEXT NOT NULL)')
+            yield connection
+    finally:connection.close()
 
 def source(owner):
     with db() as conn:row=conn.execute('SELECT source,payload FROM invoices WHERE owner=?',(owner,)).fetchone()

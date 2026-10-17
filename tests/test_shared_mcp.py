@@ -5,14 +5,13 @@ from unittest.mock import patch
 import mcp_access,workspace
 
 class SharedMCPCredentialTests(unittest.TestCase):
-    def test_shared_signer_accepts_sample_scope_across_function_stores(self):
+    def test_separate_origin_without_shared_grant_store_fails_closed(self):
         with tempfile.TemporaryDirectory() as first,tempfile.TemporaryDirectory() as second,patch.dict('os.environ',{'VERCEL':'1','FINANCEGUARD_MCP_SIGNING_KEY':'unit-test-shared-key-'+'a'*32}):
             with patch.object(workspace,'RUNTIME',Path(first)):
                 _,rows=workspace.source('cross-instance-owner')
                 credential=mcp_access.issue('cross-instance-owner','summarize_overdue_invoices',rows)
             with patch.object(workspace,'RUNTIME',Path(second)):
-                result=mcp_access.invoke('summarize_overdue_invoices',credential)
-                self.assertEqual(result['total_overdue_amount_inr'],88000)
+                with self.assertRaises(Exception):mcp_access.invoke('summarize_overdue_invoices',credential)
                 with patch.dict('os.environ',{'FINANCEGUARD_MCP_SIGNING_KEY':'unit-test-different-key-'+'b'*32}):
                     with self.assertRaises(Exception):mcp_access.invoke('summarize_overdue_invoices',credential)
     def test_short_configured_signer_is_rejected(self):

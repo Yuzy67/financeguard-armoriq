@@ -2,8 +2,11 @@
 
 FinanceGuard accepts invoice CSV exports, including exports from spreadsheets
 and accounting software that contain the required fields. An API key, bank
-account, or gateway account is not required. PDF/image extraction, OAuth account
-connections and automatic Google Sheets synchronization are not implemented.
+account, or gateway account is not required. Zoho OAuth and Razorpay/Stripe test
+invoice connections now have a separate preview/import flow on persistent
+backends; see [provider setup](PROVIDER-CONNECTIONS.md) for requirements and
+unverified live-account steps. PDF/image extraction and automatic Google Sheets
+synchronization are not implemented.
 
 ## User workflow
 

@@ -1,3 +1,5 @@
+import { installProviderUI } from "./providers.mjs";
+import { executionStatus } from "./execution-status.mjs";
 const $ = (s) => document.querySelector(s),
   money = (n) =>
     new Intl.NumberFormat("en-IN", {
@@ -16,6 +18,7 @@ let state = null,
 let linkedFile = null,
   pendingHandle = null,
   pendingRevision = -1;
+let lastRequestFailure = null;
 let conversation = null,
   chatSnapshot = "",
   linkedSnapshot = "",
@@ -52,12 +55,16 @@ async function api(path, body) {
         "The server returned an unreadable response. Check deployment health and retry.",
       );
     }
-    if (!response.ok)
-      throw Error(
+    if (!response.ok) {
+      const error = Error(
         data.reason ||
           data.detail ||
           "Request failed (" + response.status + ")",
       );
+      error.integration = data;
+      error.requestPath = path;
+      throw error;
+    }
     if (data.status) data.status = data.status.toUpperCase();
     return data;
   } catch (error) {
@@ -221,23 +228,7 @@ function renderConversation(next) {
       message.append(proof);
     }
   }
-  const latestAction = next.messages
-    .flatMap((item) => item.actions || [])
-    .at(-1);
-  $("#verified-title").textContent = latestAction
-    ? latestAction.verified === true
-      ? "Intent verified"
-      : latestAction.status === "BLOCKED"
-        ? "Request blocked"
-        : latestAction.status === "ERROR"
-          ? "Execution needs attention"
-          : "Local execution completed"
-    : "Awaiting execution";
-  $("#verified-text").textContent = latestAction
-    ? latestAction.verified === true
-      ? "ArmorIQ SDK returned verified=True for this execution."
-      : latestAction.reason
-    : "Verification status comes from the selected execution engine.";
+  renderVerification();
   const pending = next.pending;
   $("#chat-pending").replaceChildren();
   $("#chat-pending").hidden = !pending;
@@ -288,13 +279,23 @@ function status(text, kind = "info") {
   $("#result").textContent = text;
   $("#result").dataset.kind = kind;
 }
+function renderVerification() {
+  const evidence = executionStatus(
+    state,
+    $("#engine").value,
+    lastRequestFailure,
+  );
+  $("#verified-title").textContent = evidence.title;
+  $("#verified-text").textContent = evidence.text;
+}
 function render() {
   if (!state) return;
+  renderVerification();
   const lastProviderEvent = state.events.find(
     (e) => e.engine === "ARMORIQ" || e.engine === "ARMORIQ_SDK",
   );
-  $("#armoriq-connection").textContent = !state.armoriq_configured
-    ? "ArmorIQ: backend key missing"
+  $("#armoriq-connection").textContent = state.armoriq?.issues?.length
+    ? "ArmorIQ: " + state.armoriq.issues.map((issue) => issue.message).join(" ")
     : lastProviderEvent?.verified === true
       ? "ArmorIQ: latest SDK execution verified"
       : lastProviderEvent?.status === "ERROR"
@@ -312,6 +313,20 @@ function render() {
       latestTrace.rejected +
       "). Console visibility not independently confirmed."
     : "No SDK trace captured in this workspace. Local activity is not a cloud audit log.";
+  if (latestTrace?.agent_id) {
+    $("#trace-status").textContent += " Agent: " + latestTrace.agent_id +
+      " · organization: " + latestTrace.organization_id +
+      " · MCP record: " + (latestTrace.mcp_server_id || "not resolved") +
+      " · registry identity: " + (latestTrace.agent_registry_verified ? "matched bootstrap identity" : "unconfirmed");
+  }
+  const policyReceipt = latestTrace?.runtime_policy;
+  if (policyReceipt) {
+    $("#trace-status").textContent += policyReceipt.source === "ARMORIQ_ENFORCEMENT_API"
+      ? " · enforcement HTTP " + policyReceipt.http_status + ", decision " +
+        (policyReceipt.response_valid ? (policyReceipt.allowed ? "ALLOW" : "DENY") : "invalid response") +
+        ". Policy target and dashboard record require independent confirmation."
+      : " · SDK intent binding denied before proxy execution; not a cloud policy decision.";
+  }
   $("#storage-notice").hidden = !state.temporary_storage;
   $("#identity").textContent = state.user.signed_in
     ? state.user.email
@@ -330,6 +345,9 @@ function render() {
       sample: "Sample dataset",
       upload: "Your CSV import",
       stripe_sandbox: "Stripe sandbox",
+      zoho: "Zoho Invoice snapshot",
+      razorpay: "Razorpay test snapshot",
+      stripe: "Stripe test snapshot",
     }[state.source] || state.source);
   $("#linked-status").textContent =
     linkedFile && state.source === "upload"
@@ -337,7 +355,9 @@ function render() {
         " · Connected for this session. Refresh to preview changes."
       : state.source === "upload"
         ? "Imported snapshot · Upload again or link a file to refresh your records."
-        : "Example records · Add your own invoice export when you’re ready.";
+        : state.source === "sample"
+          ? "Example records · Add your own invoice source when ready."
+          : "Provider snapshot · Open Connections to fetch an updated preview.";
   $("#refresh-file").hidden = !linkedFile || state.source !== "upload";
   $("#auto-sync-control").hidden = !linkedFile || state.source !== "upload";
   $("#auto-sync").checked = autoSync;
@@ -532,6 +552,7 @@ async function refresh() {
   const version = revision;
   const next = await api("/api/state");
   if (version === revision) {
+    if (state?.user?.uid !== next.user.uid) lastRequestFailure = null;
     state = next;
     render();
     const snapshot = JSON.stringify(next.invoices) + next.user.uid;
@@ -548,6 +569,7 @@ async function task(work) {
     return;
   }
   busy = true;
+  lastRequestFailure = null;
   const active =
     document.activeElement?.tagName === "BUTTON"
       ? document.activeElement
@@ -561,6 +583,18 @@ async function task(work) {
   try {
     await work();
   } catch (e) {
+    if (
+      [
+        "/api/approve",
+        "/api/execute",
+        "/api/attempt-refund",
+        "/api/run-approved-action",
+        "/api/chat/approve",
+      ].includes(e.requestPath)
+    ) {
+      lastRequestFailure = { engine: $("#engine").value, reason: e.message };
+      renderVerification();
+    }
     status(e.message, "error");
     toast(e.message, "error");
     bubble(e.message);
@@ -575,6 +609,7 @@ async function task(work) {
       $("#connection").textContent = e.message;
       toast(e.message, "error");
     });
+    window.dispatchEvent(new Event("fg-task-finished"));
   }
 }
 
@@ -591,22 +626,13 @@ function outcome(data) {
   status(data.status + " · " + (data.reason || ""), kind);
   toast(data.reason || data.status, kind);
   const message = bubble(data.status + " · " + (data.reason || ""));
-  $("#verified-title").textContent =
-    data.status === "APPROVED"
-      ? "Permission approved"
-      : data.verified === true
-        ? "Intent verified"
-        : data.status === "BLOCKED"
-          ? "Request blocked"
-          : "Local / unverified result";
-  $("#verified-text").textContent =
-    data.status === "APPROVED"
-      ? "Ready to run the approved task. No invoice tool has executed yet."
-      : data.verified === true
-        ? "ArmorIQ SDK returned verified=True for this execution."
-        : data.event?.engine === "LOCAL_POLICY"
-          ? "Local plan enforced. No ArmorIQ verification claimed."
-          : data.reason || "No verified execution.";
+  if (data.event && state) {
+    state.events = [
+      data.event,
+      ...state.events.filter((event) => event.id !== data.event.id),
+    ];
+  }
+  renderVerification();
   if (data.result) {
     const result = data.result;
     if (result.overdue_invoice_count !== undefined)
@@ -1098,6 +1124,7 @@ async function initializeAuth() {
       revision++;
       user = next;
       state = null;
+      window.dispatchEvent(new Event("fg-account-changed"));
       pendingCSV = "";
       linkedFile = null;
       autoSync = false;
@@ -1131,6 +1158,11 @@ async function initializeAuth() {
       } finally {
         authReady = true;
         render();
+        if (next && !sessionStorage.getItem("fg-onboard-" + next.uid)) {
+          sessionStorage.setItem("fg-onboard-" + next.uid, "1");
+          $("#sources").showModal();
+        }
+        if (next) window.dispatchEvent(new Event("fg-auth-ready"));
       }
     });
     $("#account-form").onsubmit = (e) => {
@@ -1176,6 +1208,18 @@ try {
   $("#connection").textContent = error.message;
   toast(error.message, "error");
 }
+installProviderUI({
+  api,
+  task,
+  refresh,
+  isSignedIn: () => !!user,
+  clearFile: () => {
+    linkedFile = null;
+    autoSync = false;
+    linkedSnapshot = "";
+  },
+  account: () => revision,
+});
 initializeAuth();
 setInterval(() => {
   if (!busy) refresh().catch((e) => ($("#connection").textContent = e.message));

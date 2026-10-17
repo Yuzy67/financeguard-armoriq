@@ -1,5 +1,7 @@
 # ArmorIQ observability: implementation and verification
 
+> Historical findings below are dated. See the [October 17 live integration report](ARMORIQ-INTEGRATION-2026-10-17.md) for current configuration, evidence and blockers.
+
 ## Root cause
 
 The old script called capture_plan/get_intent_token/invoke directly. It did not
@@ -47,7 +49,8 @@ does SDK verified=True prove a signed receipt or a dashboard decision count.
 
 Set ARMORIQ_API_KEY privately, plus ARMORIQ_EXPECTED_ORG_ID,
 ARMORIQ_AGENT_ID, MCP_SERVER_URL, and ARMORIQ_OBSERVABILITY=true.
-The expected org defaults to 68c3541d-e2d8-462a-8393-243925a5ed23 for this team.
+ARMORIQ_EXPECTED_ORG_ID is required explicitly and must match authenticated bootstrap.
+Workspace credential forwarding and the private signing key are also required.
 The SDK uses its documented backend and appends its own spans endpoint. Do not
 invent tracing endpoints or append /observability/spans to a base URL variable.
 

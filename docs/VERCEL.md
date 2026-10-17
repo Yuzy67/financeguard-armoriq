@@ -1,90 +1,59 @@
 # Vercel deployment
 
-Production URL: https://financeguard-armoriq.vercel.app
+Production: https://financeguard-armoriq.vercel.app
 
-Vercel detects app.py as the FastAPI entrypoint. vercel.json sets a 60-second
-function timeout. The frontend and sample invoices ship with the application.
+Vercel runs app.py as FastAPI, serving both the frontend and /api routes.
+api.py is a compatibility alias. Frontend fetches are same-origin, not a
+separately hosted API. vercel.json sets a 60-second function timeout.
+
+See [current diagnosis and exact configuration](ARMORIQ-DIAGNOSIS.md).
+Changes to remote configuration, registration or deployment require approval.
 
 ## Runtime compatibility
 
-- VERCEL=1 selects the writable temporary directory, never the read-only source.
-- Trusted hosts include the exact VERCEL_URL, VERCEL_BRANCH_URL, and
-  VERCEL_PROJECT_PRODUCTION_URL supplied by Vercel. Add exact custom domains
-  through FINANCEGUARD_ALLOWED_HOSTS; do not use a wildcard.
-- Guest cookies are Secure on Vercel.
-- Local-mode MCP uses a fresh ASGI server and the real initialize/tools/call
-  protocol within the function. No localhost TCP listener is required.
-- GET /api/health exposes non-sensitive runtime/configuration status.
+- VERCEL=1 selects writable temporary storage. It is not a persistent database.
+- TrustedHostMiddleware and MCP DNS rebinding protection accept exact deployment
+  hosts supplied by Vercel; custom domains use FINANCEGUARD_ALLOWED_HOSTS.
+- Guest cookies are Secure. Cross-origin writes are rejected.
+- Local policy mode uses actual MCP initialize/tools/call over ASGI within the
+  function; it does not require a localhost listener.
+- ArmorIQ mode invokes the external registered MCP through the real SDK proxy.
+- /api/health exposes sanitized configuration checks and deployment metadata.
+  Configuration present does not imply authentication, execution or verification.
 
-## Environment configuration
+## Persistent state is required for reliable hosted execution
 
-For AI chat, set OPENROUTER_API_KEY and OPENROUTER_MODEL on the backend only.
-The private runtime/vercel-production.env preparation helper includes these
-when present locally. New environment values require a redeploy. A free model
-may be rate-limited; a configured key does not prove a successful model call.
-Conversation history uses the same temporary SQLite storage limitation below.
+SQLite files under /tmp, guest sessions and SDK approval objects in process
+memory can disappear or differ between invocations. Public /mcp requests may
+reach a different instance than the one issuing an approval. Importing keys
+and redeploying alone does not solve this architecture limitation.
 
-Set private ARMORIQ_API_KEY in Vercel project settings only. Use a replacement
-for the key previously exposed in Git history. Set FIREBASE_PROJECT_ID=asmoneykit.
-Add financeguard-armoriq.vercel.app to Firebase Auth authorized domains if needed.
-Keep FINANCEGUARD_SCOPED_MCP=0 until the registered external MCP origin can access
-shared persistent data with a consistent signing key. The temporary tunnel used
-for earlier local testing is stopped and is not the deployed MCP service.
+Origin tokens now include an approval grant ID. The MCP checks signature,
+owner, action, dataset fingerprint, expiry and the active grant before reading
+invoices. Revocation marks origin grants invalid. Unknown grants fail closed.
+A shared signing key does not supply missing grants, even for sample invoices.
 
-## Current storage limit
+For the fastest dependable demo, run this app and its /mcp endpoint together
+on one persistent backend and register that backend's public HTTPS /mcp URL.
+Local same-process testing on port 8004 is verified, but external hosting and
+registration still require approval and validation. Alternatively implement
+shared durable invoices, grants/revocations, approvals and identity sessions
+before using distributed serverless instances. Firebase web configuration only
+sets up Auth; it does not provide server database authorization.
 
-This deployment is a temporary hosted demo. SQLite, guest sessions, approvals,
-and local activity can reset on cold starts or differ across instances. A notice
-in the UI states this. Uploaded CSV files are not durably stored by Vercel.
-Approvals fail closed when absent; data changes invalidate an existing approval.
+## Environment updates
 
-For persistent hosted use, connect a shared database and move approvals, guest
-sessions, and workspace credentials to a consistent shared store. The Firebase
-web configuration only provides Auth setup; it does not grant server database
-access. Do not present this deployment as durable production storage.
+Use exact names from .env.example in the actual backend host. Select Production
+for the public production domain; use Preview separately for preview deploys.
+A Secret designation is appropriate for private credentials. The value must be
+the credential, not the word Secret. Never use NEXT_PUBLIC_ or VITE_ prefixes.
+Save settings and create a NEW deployment; existing deployments retain their
+old environment. Do not commit .env, armoriq.yaml or runtime import files.
 
-## Verify after deployment
+FINANCEGUARD_SCOPED_MCP=1 and the shared private signing key are required for
+ArmorIQ workspace access. The matching origin must also have the same approved
+grants and invoice snapshot, not only the signing key.
 
-Check /, /assets/app.js, /assets/style.css, /favicon.ico, and /api/health. Start a
-sample workspace, approve a summary, run it, attempt a refund, inspect the trail.
-The Vercel regression test runs the real MCP protocol without a network listener.
-
-## Session tracing update
-
-The web API now uses ArmorIQWorkflow session instrumentation. Configure the
-expected organization, agent, current MCP_SERVER_URL, and observability flag as
-shown in .env.example. A wrong organization or stale registration refuses plan
-creation. Application audit rows expose real SDK IDs and per-flush delivery
-receipts, never intent tokens. See OBSERVABILITY.md.
-
-Do not forward a Vercel-generated scope credential to a separate local database
-and expect user-upload parity. Use sample data in both runtimes, or host the
-app and origin together with durable shared state before claiming imported
-cloud invoices work through that remote origin.
-
-## Stable deployed MCP endpoint (current setup)
-
-The intended endpoint is https://financeguard-armoriq.vercel.app/mcp.
-The MCP transport now accepts exact configured deployment hosts with DNS
-rebinding protection still enabled. Missing scope credentials still deny
-invoice tool access; discovery only lists tool names and schemas.
-
-For a stable hosted sample demonstration, set a private
-FINANCEGUARD_MCP_SIGNING_KEY (32+ random characters) consistently across
-instances and FINANCEGUARD_SCOPED_MCP=1. The built-in sample dataset is the same
-on every instance, so a sample scope can be verified across separate instances.
-This does not make uploaded data or plans durable across server restarts.
-
-Run tools/prepare_vercel_env.py locally to validate your current key and create
-runtime/vercel-production.env. It is a private Git-ignored import file, not a
-submission artifact. It includes the current API key, expected organization,
-public MCP URL, and matching signing key. Never paste or commit its contents.
-
-Import that file in Vercel project Settings / Environment Variables for
-Production, save, and redeploy. After deployment, /api/health must show both
-armoriq_configured=true and mcp_signing_configured=true. Those booleans only
-confirm settings exist; a real SDK invocation must still verify they work.
-
-Register the deployed HTTPS /mcp URL in ArmorIQ's matching organization using
-tools/register_mcp.py, then run tools/check_setup.py and the real demo. No laptop
-tunnel is needed for this endpoint. Do not expose /runtime or configuration files.
+The existing tools/prepare_vercel_env.py produces a private ignored import file;
+it does not deploy, register an origin or solve shared storage. Do not upload
+or apply it without reviewing the intended Production target and approval.

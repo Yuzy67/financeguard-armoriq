@@ -379,47 +379,50 @@
         <button data-close="sources" aria-label="Close">✕</button>
       </div>
       <p class="muted">
-        Use a CSV export from your spreadsheet or accounting app. All amounts
-        must be INR.
+        Three ways to start. Provider imports are read-only and require
+        confirmation.
       </p>
       <div class="source-grid">
         <article>
-          <span class="source-symbol">↻</span>
-          <h4>Link an invoice file</h4>
+          <span class="source-symbol">01</span>
+          <h4>Try sample invoices</h4>
           <p>
-            Choose a CSV on your device. After updating it, click Refresh file
-            to review the latest records.
+            Explore five labeled examples. No provider account or credentials
+            needed.
           </p>
-          <button id="link-file" class="primary">Choose file to link</button
-          ><small
-            >Available in supported desktop browsers. Reconnect after reloading
-            or changing accounts.</small
-          >
+          <button id="sample">Use sample invoices</button
+          ><small>Switching sources clears approvals.</small>
         </article>
         <article>
-          <span class="source-symbol">↑</span>
-          <h4>Import a CSV</h4>
+          <span class="source-symbol">02</span>
+          <h4>Upload your CSV</h4>
           <p>
-            Upload an invoice export, check the preview, then confirm. Works
-            without a gateway account.
+            Bring an accounting export. Preview the records before importing.
           </p>
           <label class="file-button"
             >Choose CSV<input
               type="file"
               id="csv"
               accept=".csv,text/csv" /></label
-          ><a href="/api/template">Download CSV template ↗</a>
+          ><a href="/api/template">Download template</a>
+          <details>
+            <summary>Keep a local CSV linked</summary>
+            <button id="link-file">Choose file to link</button
+            ><small>Optional sync while this page is open.</small>
+          </details>
         </article>
         <article>
-          <span class="source-symbol">▤</span>
-          <h4>Just exploring?</h4>
+          <span class="source-symbol">03</span>
+          <h4>Connect your provider</h4>
           <p>
-            Try five sample invoices and the complete approval workflow before
-            bringing your data.
+            Connect Zoho Invoice, or import test invoices from Razorpay and
+            Stripe.
           </p>
-          <button id="sample">Use sample invoices</button
+          <button id="open-providers" class="primary">
+            Connect Zoho or another provider</button
           ><small
-            >Replaces this workspace’s imported data after confirmation.</small
+            >Credentials stay on the backend. No payments or invoice
+            edits.</small
           >
         </article>
       </div>
@@ -451,6 +454,95 @@
         Sign in to import your own invoices. Sample data is available without
         sign-in.
       </p>
+    </dialog>
+    <dialog id="providers">
+      <div class="heading">
+        <div>
+          <span class="eyebrow">READ-ONLY CONNECTIONS</span>
+          <h3>Bring invoices from your provider</h3>
+        </div>
+        <button data-close="providers" aria-label="Close">Close</button
+        ><a
+          href="/assets/guides/index.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Watch provider setup guides</a
+        >
+      </div>
+      <p id="provider-host" class="muted" role="status"></p>
+      <label for="provider-select">Invoice provider</label
+      ><select id="provider-select">
+        <option value="zoho">Zoho Invoice - OAuth</option>
+        <option value="razorpay">Razorpay - Test Mode</option>
+        <option value="stripe">Stripe - Restricted Test Key</option>
+      </select>
+      <p id="provider-state" class="muted"></p>
+      <div id="provider-zoho">
+        <label for="zoho-region">Your Zoho data center</label
+        ><select id="zoho-region">
+          <option value="in">India (.in)</option>
+          <option value="com">United States (.com)</option>
+          <option value="eu">Europe (.eu)</option></select
+        ><label for="zoho-org">Zoho Invoice organization ID</label
+        ><input
+          id="zoho-org"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="Organization ID, not your ArmorIQ organization"
+        />
+        <p class="muted">
+          Sign in on Zoho and grant invoice READ access. Your Zoho password
+          never passes through FinanceGuard.
+        </p>
+      </div>
+      <form id="provider-key-form" hidden>
+        <label for="provider-key">Test key / key ID</label
+        ><input id="provider-key" type="password" autocomplete="off" />
+        <div id="razorpay-secret">
+          <label for="provider-secret">Razorpay test key secret</label
+          ><input id="provider-secret" type="password" autocomplete="off" />
+        </div>
+        <p class="muted">
+          Stripe requires an rk_test_ restricted key with invoice READ
+          permission. Razorpay test credentials may permit other operations;
+          this importer only fetches invoices.
+        </p>
+      </form>
+      <div class="actions">
+        <button id="provider-connect" class="primary">Connect Zoho</button
+        ><button id="provider-preview">Fetch invoice preview</button
+        ><button id="provider-disconnect">Disconnect</button>
+      </div>
+      <p id="provider-feedback" class="muted" role="status"></p>
+      <div id="provider-preview-panel" hidden>
+        <h4>Review before importing</h4>
+        <p id="provider-preview-info"></p>
+        <div id="provider-preview-rows"></div>
+        <button id="provider-confirm" class="primary">
+          Replace workspace with this preview
+        </button>
+        <p class="muted">
+          Importing invalidates existing approvals. Automatic background sync is
+          not enabled.
+        </p>
+      </div>
+      <details open>
+        <summary>Connection guide</summary>
+        <ol id="provider-steps"></ol>
+        <a id="provider-docs" target="_blank" rel="noopener noreferrer"
+          >Official provider instructions</a
+        >
+        <p class="muted">
+          Animated setup previews use illustrative screens, never customer
+          secrets.
+        </p>
+        <a
+          href="/assets/guides/index.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Watch animated setup guides</a
+        >
+      </details>
     </dialog>
     <dialog id="account">
       <div class="heading">

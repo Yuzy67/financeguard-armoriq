@@ -20,6 +20,9 @@ jobs:
         with:
           node-version: '22'
       - run: node --input-type=module --check < frontend/app.js
+      - run: node --test tests/frontend-status.test.mjs
+      - run: node --check frontend/providers.mjs
+      - run: node --check frontend/guides/player.js
       - name: Verify excluded private files
         shell: python
         run: |
