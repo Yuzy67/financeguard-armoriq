@@ -5,6 +5,7 @@ import time
 from uuid import uuid4
 from integration_errors import ConfigurationError, IntegrationError
 from runtime_config import require_armoriq_configuration, SDK_ENDPOINTS
+from mcp_registry import resolve_existing_mcp
 
 # Upstream SDK messages can embed arbitrary HTTP response bodies. Emit only our
 # sanitized errors and explicit ingestion receipts, never upstream log content.
@@ -66,7 +67,7 @@ class ArmorIQWorkflow:
                 raise ConfigurationError('The API key bootstrap agent differs from ARMORIQ_AGENT_ID. Resolve the existing registry identity before approving a plan.', 'agent_identity_mismatch')
             self.agent_registry_verified = bool(resolved and resolved == self.client.agent_id)
             endpoint = os.environ.get('MCP_SERVER_URL')
-            registered = next((m for m in self.client.list_mcps() if m.get('id') == os.environ['ARMORIQ_MCP_SERVER_ID']), None)
+            registered = resolve_existing_mcp(self.client.list_mcps(), os.environ['ARMORIQ_MCP_SERVER_ID'])
             if not registered:
                 raise ConfigurationError('The existing ARMORIQ_MCP_SERVER_ID is not exposed in this key organization registry. Verify the record ID and account access; do not create a duplicate.', 'mcp_not_registered')
             self.mcp_server_id = registered['id']

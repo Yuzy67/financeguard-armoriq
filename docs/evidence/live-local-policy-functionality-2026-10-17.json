@@ -1,0 +1,63 @@
+{
+  "timestamp_utc": "2026-10-17T07:13:11.241152+00:00",
+  "engine": "local",
+  "note": "Real MCP under FinanceGuard local policy; NOT ArmorIQ verification. Synthetic guest only.",
+  "checks": [
+    {
+      "check": "start_sample",
+      "http_status": 200,
+      "status": "READY"
+    },
+    {
+      "check": "approve_summary",
+      "http_status": 200,
+      "status": "APPROVED",
+      "reason": "Approved summarize_overdue_invoices for five minutes."
+    },
+    {
+      "check": "execute_summary",
+      "http_status": 200,
+      "status": "allowed",
+      "verified": false,
+      "reason": "MCP tool executed for this workspace under the local plan. No ArmorIQ verification claimed.",
+      "summary": {
+        "overdue_invoice_count": 3,
+        "total_overdue_amount_inr": 88000
+      }
+    },
+    {
+      "check": "deny_refund",
+      "http_status": 200,
+      "status": "blocked",
+      "verified": false,
+      "reason": "Outside the approved local plan. Nothing executed."
+    },
+    {
+      "check": "revoke",
+      "http_status": 200,
+      "status": "REVOKED",
+      "reason": "Workspace approvals and origin credentials revoked. This is not a global provider token revocation."
+    },
+    {
+      "check": "execute_after_revoke",
+      "http_status": 409,
+      "detail": "Approve a plan first, or renew the expired plan."
+    },
+    {
+      "check": "deny_guest_import",
+      "http_status": 401,
+      "detail": "Sign in before importing invoices."
+    },
+    {
+      "check": "read_audit",
+      "http_status": 200,
+      "event_statuses": [
+        "REVOKED",
+        "BLOCKED",
+        "ALLOWED",
+        "APPROVED"
+      ],
+      "source": "application_action_trail"
+    }
+  ]
+}

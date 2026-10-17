@@ -5,6 +5,7 @@ from urllib.parse import urlsplit,urlunsplit
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from dotenv import load_dotenv
+from mcp_registry import resolve_existing_mcp
 load_dotenv(ROOT/'.env')
 
 def main():
@@ -22,7 +23,7 @@ def main():
         with ArmorIQClient(api_key=os.environ['ARMORIQ_API_KEY'],agent_id=os.environ['ARMORIQ_AGENT_ID'],timeout=15,max_retries=0,verify_ssl=True,**SDK_ENDPOINTS) as client:
             organization=(client.bootstrap().get('org') or {}).get('orgId')
             if organization!=os.environ['ARMORIQ_EXPECTED_ORG_ID']:raise ValueError('organization_mismatch')
-            record=next((m for m in client.list_mcps() if m.get('id')==os.environ['ARMORIQ_MCP_SERVER_ID']),None)
+            record=resolve_existing_mcp(client.list_mcps(),os.environ['ARMORIQ_MCP_SERVER_ID'])
             if not record:raise ValueError('existing_record_not_resolved')
             current=urlsplit(record.get('url',''))
             print(json.dumps({'mode':'proposal_only','organization_id':organization,'agent_id':os.environ['ARMORIQ_AGENT_ID'],'existing_mcp_record_id':record['id'],'existing_name':record.get('name'),'current_endpoint':urlunsplit((current.scheme,current.hostname or '',current.path,'','')),'proposed_endpoint':args.url,'policy_change':None,'remote_changes_applied':False,'next_step':'Review the existing policy target/rules and obtain approval before updating this exact record.'},indent=2))

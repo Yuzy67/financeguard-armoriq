@@ -1,0 +1,37 @@
+{
+  "provenance": "Owner supplied selected fields from GET /agent/agents and MCP usage; not independently retrieved here.",
+  "agent": {
+    "name": "financeguard-agent",
+    "id": "0b925302-bb1d-4e44-908a-e67869e52db9",
+    "organization_id": "68c3541d-e2d8-462a-8393-243925a5ed23",
+    "organization_name": "Yuvraj Singh's Workspace",
+    "stored_url": "https://proxy.armoriq.ai",
+    "registration_status": "pending",
+    "endpoints_count": 0,
+    "interface_type": null,
+    "agent_type": null,
+    "last_scanned_at": "2026-10-17T05:34:17.294Z"
+  },
+  "mcp": {
+    "id": "2da563ef-544e-4db7-a418-0c404cf75180",
+    "name": "finance-mcp",
+    "stored_url": null,
+    "organization_id": null,
+    "call_count": 2,
+    "calls_24h": 2,
+    "caller_labels": [
+      "financeguard-demo"
+    ],
+    "usage_request_success": true,
+    "tool_success_confirmed": false
+  },
+  "policy": {
+    "owner_observation": "No matching policy row on Policies page",
+    "workspace_and_filters_verified": false,
+    "attachment_verified": false,
+    "absence_confirmed": false,
+    "target": null,
+    "status": null,
+    "rules": null
+  }
+}

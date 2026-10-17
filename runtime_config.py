@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 from integration_errors import ConfigurationError
+from mcp_registry import uuid_string
 
 # Verified against the installed production SDK 0.6.10. Do not inherit generic
 # BACKEND_ENDPOINT/PROXY_ENDPOINT variables from another application/service.
@@ -55,7 +56,11 @@ def armoriq_configuration():
     check('FINANCEGUARD_MCP_SIGNING_KEY', len(signing) >= 32 and signing == signing.strip(),
           'FINANCEGUARD_MCP_SIGNING_KEY must be a private shared random key of at least 32 characters on the backend and MCP origin.')
     return {'configuration_status': 'missing' if any(c['status'] == 'missing' for c in checks) else 'invalid' if issues else 'configured',
-            'checks': checks, 'issues': issues, 'connectivity': 'not_checked', 'execution': 'not_verified'}
+            'checks': checks, 'issues': issues,
+            'identifiers': {'expected_organization_id': uuid_string(expected),
+                            'agent_id': uuid_string(agent),
+                            'mcp_server_id': uuid_string(os.environ.get('ARMORIQ_MCP_SERVER_ID'))},
+            'connectivity': 'not_checked', 'execution': 'not_verified'}
 
 
 def require_armoriq_configuration():

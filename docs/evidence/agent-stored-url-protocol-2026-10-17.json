@@ -1,0 +1,6 @@
+{
+  "endpoint": "https://proxy.armoriq.ai",
+  "transport": "Streamable HTTP",
+  "initialized": false,
+  "error_type": "ExceptionGroup"
+}

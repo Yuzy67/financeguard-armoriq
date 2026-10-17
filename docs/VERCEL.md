@@ -6,7 +6,7 @@ Vercel runs app.py as FastAPI, serving both the frontend and /api routes.
 api.py is a compatibility alias. Frontend fetches are same-origin, not a
 separately hosted API. vercel.json sets a 60-second function timeout.
 
-See [current diagnosis and exact configuration](ARMORIQ-DIAGNOSIS.md).
+See [current diagnosis and exact configuration](ARMORIQ-INTEGRATION-2026-10-17.md).
 Changes to remote configuration, registration or deployment require approval.
 
 ## Runtime compatibility
