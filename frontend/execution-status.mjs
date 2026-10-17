@@ -1,4 +1,16 @@
 // Only persisted action evidence can establish execution or verification.
+export function isSDKVerifiedExecution(event) {
+  return event?.status === 'ALLOWED' && event.engine === 'ARMORIQ' && event.verified === true;
+}
+
+export function activityCounts(events = []) {
+  return {
+    completed: events.filter(e => e.status === 'ALLOWED').length,
+    blocked: events.filter(e => e.status === 'BLOCKED').length,
+    sdkReportedVerified: events.filter(isSDKVerifiedExecution).length,
+  };
+}
+
 export function executionStatus(state, engine, failure) {
   if (failure?.engine === engine)
     return { title: "Execution needs attention", text: failure.reason };
@@ -21,8 +33,8 @@ export function executionStatus(state, engine, failure) {
     return {
       title:
         title ||
-        (event.verified === true
-          ? "Intent verified"
+        (isSDKVerifiedExecution(event)
+          ? "SDK reports verified"
           : "Local / unverified result"),
       text:
         event.status === "APPROVED"

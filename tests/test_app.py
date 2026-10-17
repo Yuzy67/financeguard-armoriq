@@ -35,6 +35,31 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.post('/api/import',{'csv':'anything'}).status_code,401)
         self.assertEqual(self.web.get('/api/state',headers={'Authorization':'Bearer fake'}).status_code,401)
         self.assertEqual(self.web.post('/api/demo',headers={'Origin':'https://evil.example'}).status_code,403)
+    def test_repeated_demo_preserves_owner_and_activity(self):
+        module.app.dependency_overrides.clear()
+        self.post('/api/demo',{})
+        before=self.web.get('/api/state').json()
+        self.post('/api/approve',{})
+        self.post('/api/run-approved-action',{})
+        events=self.web.get('/api/state').json()['events']
+        response=self.post('/api/demo',{}).json()
+        after=self.web.get('/api/state').json()
+        self.assertTrue(response['session_reused'])
+        self.assertEqual(before['user']['uid'],after['user']['uid'])
+        self.assertEqual(events,after['events'])
+        self.assertTrue(any(event['status']=='ALLOWED' for event in events))
+    def test_expired_guest_starts_new_owner_without_exposing_old_activity(self):
+        module.app.dependency_overrides.clear()
+        self.post('/api/demo',{})
+        original=self.web.get('/api/state').json()['user']['uid']
+        self.post('/api/approve',{})
+        module.guest_sessions[self.web.cookies.get('fg_demo')]['expires']=0
+        self.assertEqual(self.web.get('/api/state').status_code,401)
+        self.post('/api/demo',{})
+        after=self.web.get('/api/state').json()
+        self.assertNotEqual(original,after['user']['uid'])
+        self.assertEqual(after['events'],[])
+        self.assertTrue(module.store.history(original))
     def test_scoped_import_and_plan_invalidation(self):
         csv='invoice_id,customer_name,amount_inr,due_date,status\nA,Example,123.45,2020-01-01,unpaid\n'
         self.assertEqual(self.post('/api/import',{'csv':csv}).json()['count'],1)
