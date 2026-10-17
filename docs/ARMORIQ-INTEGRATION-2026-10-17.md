@@ -1,5 +1,78 @@
 # ArmorIQ integration evidence — October 17, 2026
 
+## Confirmed registry parser correction
+
+A fresh real API-key diagnostic returned HTTP200 from bootstrap and registry.
+Bootstrap resolved organization `68c3541d-e2d8-462a-8393-243925a5ed23`.
+`GET https://api.armoriq.ai/mcp/my-servers` returned root keys `success,data`;
+its sole record had keys `mcpId,name,url`. Its mcpId matched exactly
+`2da563ef-544e-4db7-a418-0c404cf75180`. The previous application lookup tested
+only `id`, so it incorrectly rejected this response. This is a confirmed code
+bug, not proof the record was deleted or the organization lacked access.
+
+The shared resolver now accepts the observed mcpId DTO and legacy id DTO,
+canonicalizes UUIDs and preserves exact-resource binding. Name-only fallback,
+conflicting IDs and ambiguous duplicates are refused. The workflow, setup
+check and read-only registration proposal share this resolver. Health exposes
+only validated non-secret UUID identifiers for deployment comparisons.
+
+This diagnostic used the ignored local .env key; it does not verify Production
+credentials. The actual registry still returned the old ngrok endpoint
+`https://unfazed-nail-twisted.ngrok-free.dev/mcp`, which differs from local
+MCP_SERVER_URL. URL/org/auth/policy checks are preserved; this patch does not
+silently change remote registration or claim end-to-end execution succeeded.
+
+The remaining sections are historical observations from earlier checks.
+
+## Follow-up using owner-confirmed records
+
+The [owner-supplied record fields](evidence/owner-confirmed-records-2026-10-17.json)
+identify the existing agent as `financeguard-agent`, UUID
+`0b925302-bb1d-4e44-908a-e67869e52db9`, in organization
+`68c3541d-e2d8-462a-8393-243925a5ed23`. Its stored URL is
+`https://proxy.armoriq.ai`; registration is pending, endpoint count is zero,
+and interface/type are null. These are owner-confirmed response fields, not a
+new authenticated registry read performed by this environment.
+
+The official registration docs describe the URL as the agent base URL and detect
+MCP/A2A services. The stored vendor proxy URL is not established as a FinanceGuard
+agent service. A real [Streamable HTTP probe at that exact stored URL](evidence/agent-stored-url-protocol-2026-10-17.json)
+failed initialization from this environment. This does not rule out every protocol
+or scanner behavior; no endpoint replacement is applied or claimed as verified.
+The app implements MCP at `/mcp` and chat REST at `/api/agent`, with no established
+A2A service. Any existing agent URL/framework correction requires review and approval.
+
+MCP usage reports two calls under caller label `financeguard-demo`. That matches
+the historical SDK default, while the registry name is `financeguard-agent`.
+SDK 0.6.10 forwards the configured client agent_id in token minting and enforcement;
+observability also inherits that identity. The historical label is not proof of a
+registry mapping or a successful tool call. Current local config selects the
+existing UUID; Production identity remains unconfirmed. New tests assert the UUID
+is sent to enforcement and trace ingestion rather than the historical label.
+
+The owner reports no matching policy row in the Policies list. The selected
+organization and filters are not verified; this is not proof there are no policies
+or authorization to create one. No target, rules, priority, attachment or active
+status can be confirmed. Next requested field: selected workspace name only.
+
+A [fresh live trace](evidence/armoriq-confirmed-records-2026-10-17.json) at
+06:02 UTC (11:32 IST) reproduced approval success, accepted telemetry, summary
+HTTP502 MCPInvocationException and SDK IntentMismatchException for the refund.
+Session `80301343-caed-481d-b1dd-301ceac2737a`; failed summary trace
+`eb3f7ee2-1000-4e5b-8286-03e3c437a605`; refund trace
+`f7535a29-62c4-408d-a834-16cd4e650bc2`. No actual cloud policy decision
+or successful summary was confirmed. Public MCP discovery still returned eight
+tools; unauthenticated summary was denied. Local config checks now pass, but
+local SDK health and bootstrap still receive HTML403; credential validity remains
+unconfirmed locally. Production still reports missing MCP URL/signing config and
+temporary storage. The exact proxy failure needs registry URL and provider logs.
+
+The read-only setup helper now reports `connection_ready` separately from
+`end_to_end_verified`, policy attachment and tool execution. Discovery alone never
+labels the full integration ready, and routing-name/bootstrap-identity mismatches
+fail its connectivity readiness checks. No remote settings, deployment or push
+was performed during this follow-up.
+
 ## Outcome
 
 Not fixed end to end. The deployed backend can create a real ArmorIQ plan and send

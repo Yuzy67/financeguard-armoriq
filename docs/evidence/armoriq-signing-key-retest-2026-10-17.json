@@ -1,0 +1,127 @@
+{
+  "timestamp_utc": "2026-10-17T07:12:16.686561+00:00",
+  "scope": "live Vercel; fresh synthetic guest only; no financial writes",
+  "health": {
+    "http_status": 200,
+    "storage": "temporary",
+    "armoriq_configured": true,
+    "mcp_signing_configured": true,
+    "mcp_url_configured": false,
+    "armoriq": {
+      "configuration_status": "missing",
+      "checks": [
+        {
+          "name": "ARMORIQ_API_KEY",
+          "status": "present"
+        },
+        {
+          "name": "ARMORIQ_EXPECTED_ORG_ID",
+          "status": "present"
+        },
+        {
+          "name": "ARMORIQ_AGENT_ID",
+          "status": "missing"
+        },
+        {
+          "name": "ARMORIQ_MCP_SERVER_ID",
+          "status": "missing"
+        },
+        {
+          "name": "MCP_SERVER_URL",
+          "status": "missing"
+        },
+        {
+          "name": "FINANCEGUARD_SCOPED_MCP",
+          "status": "missing"
+        },
+        {
+          "name": "FINANCEGUARD_MCP_SIGNING_KEY",
+          "status": "present"
+        }
+      ],
+      "issues": [
+        {
+          "code": "armoriq_agent_id_missing",
+          "variable": "ARMORIQ_AGENT_ID",
+          "message": "ARMORIQ_AGENT_ID is missing on the running backend."
+        },
+        {
+          "code": "armoriq_mcp_server_id_missing",
+          "variable": "ARMORIQ_MCP_SERVER_ID",
+          "message": "ARMORIQ_MCP_SERVER_ID is missing on the running backend."
+        },
+        {
+          "code": "mcp_server_url_missing",
+          "variable": "MCP_SERVER_URL",
+          "message": "MCP_SERVER_URL is missing on the running backend."
+        },
+        {
+          "code": "financeguard_scoped_mcp_missing",
+          "variable": "FINANCEGUARD_SCOPED_MCP",
+          "message": "FINANCEGUARD_SCOPED_MCP is missing on the running backend."
+        }
+      ],
+      "connectivity": "not_checked",
+      "execution": "not_verified"
+    },
+    "deployment": {
+      "host": "vercel",
+      "environment": "production",
+      "revision": "a97c4b19a020",
+      "backend_origin": "same-origin",
+      "sdk_version": "0.6.10",
+      "shared_state_required": true
+    }
+  },
+  "mcp": {
+    "endpoint": "https://financeguard-armoriq.vercel.app/mcp",
+    "transport": "Streamable HTTP",
+    "initialized": true,
+    "protocol_version": "2025-11-25",
+    "server_name": "finance-mcp",
+    "tools": [
+      "list_invoices",
+      "get_invoice_details",
+      "summarize_overdue_invoices",
+      "create_draft_payment_reminders",
+      "export_sandbox_reports",
+      "simulate_refunds",
+      "transfer_funds",
+      "delete_invoices"
+    ],
+    "unauthenticated_summary_denied": true,
+    "invoice_data_received": false
+  },
+  "workflow": {
+    "frontend_contract": "frontend/app.js api() uses same-origin approval and execution routes",
+    "requests": [
+      {
+        "path": "/api/demo",
+        "http_status": 200,
+        "status": "READY",
+        "observability": {}
+      },
+      {
+        "path": "/api/state",
+        "http_status": 200,
+        "observability": {},
+        "sample_workspace": true
+      },
+      {
+        "path": "/api/approve",
+        "http_status": 503,
+        "status": "ERROR",
+        "verified": false,
+        "code": "armoriq_agent_id_missing",
+        "category": "configuration",
+        "reason": "ARMORIQ_AGENT_ID is missing on the running backend. Update Vercel Production environment settings, then create a new Production deployment.",
+        "decision_source": "ARMORIQ",
+        "observability": {}
+      }
+    ],
+    "policy_decision_confirmed": false,
+    "dashboard_decision_confirmed": false,
+    "tool_execution_confirmed": false,
+    "blocked_at": "/api/approve"
+  }
+}

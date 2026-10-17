@@ -27,7 +27,7 @@ class ObservabilityTests(unittest.TestCase):
         self.client.http_client=httpx.Client(transport=httpx.MockTransport(respond))
         token=IntentToken(token_id='unit-token',plan_hash='test-hash',signature='test-signature',issued_at=time.time(),expires_at=time.time()+300,composite_identity='test',raw_token={'plan':{'steps':[{'mcp':'finance-mcp','action':'summarize_overdue_invoices','params':{}}]}})
         self.bootstrap=patch.object(self.client,'bootstrap',return_value={'org':{'orgId':TARGET_ORG},'agent':{'agentId':'test-agent'}});self.bootstrap.start()
-        self.registry=patch.object(self.client,'list_mcps',return_value=[{'id':'2da563ef-544e-4db7-a418-0c404cf75180','name':'finance-mcp','url':'https://mcp.example/mcp'}]);self.registry.start()
+        self.registry=patch.object(self.client,'list_mcps',return_value=[{'mcpId':'2da563ef-544e-4db7-a418-0c404cf75180','name':'finance-mcp','url':'https://mcp.example/mcp'}]);self.registry.start()
         self.token=patch.object(self.client,'get_intent_token',return_value=token);self.token.start()
         original=self.client.invoke
         def invoke(mcp,action,*args,**kwargs):

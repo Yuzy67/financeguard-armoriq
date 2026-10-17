@@ -1,0 +1,174 @@
+{
+  "sdk_version": "0.6.10",
+  "timestamp_utc": "2026-10-17T06:02:41.893681+00:00",
+  "existing_mcp_record_id": "2da563ef-544e-4db7-a418-0c404cf75180",
+  "registry_read_access": "not_established",
+  "policy_target": "unconfirmed",
+  "security_scan_started": false,
+  "production_health": {
+    "http_status": 200,
+    "storage": "temporary",
+    "armoriq_configured": true,
+    "mcp_signing_configured": false,
+    "mcp_url_configured": false,
+    "deployment": null
+  },
+  "mcp": {
+    "endpoint": "https://financeguard-armoriq.vercel.app/mcp",
+    "transport": "Streamable HTTP",
+    "initialized": true,
+    "protocol_version": "2025-11-25",
+    "server_name": "finance-mcp",
+    "tools": [
+      "list_invoices",
+      "get_invoice_details",
+      "summarize_overdue_invoices",
+      "create_draft_payment_reminders",
+      "export_sandbox_reports",
+      "simulate_refunds",
+      "transfer_funds",
+      "delete_invoices"
+    ],
+    "unauthenticated_summary_denied": true,
+    "invoice_data_received": false
+  },
+  "live_trace": {
+    "frontend_contract": "frontend/app.js api() uses same-origin approval and execution routes",
+    "requests": [
+      {
+        "path": "/api/demo",
+        "http_status": 200,
+        "status": "READY",
+        "observability": {}
+      },
+      {
+        "path": "/api/state",
+        "http_status": 200,
+        "observability": {},
+        "sample_workspace": true
+      },
+      {
+        "path": "/api/approve",
+        "http_status": 200,
+        "status": "APPROVED",
+        "reason": "Approved summarize_overdue_invoices for five minutes.",
+        "decision_source": "ARMORIQ",
+        "observability": {
+          "session_id": "80301343-caed-481d-b1dd-301ceac2737a",
+          "trace_ids": [
+            "3a072626-c19f-4454-adfa-d639f450cf82"
+          ],
+          "organization_id": "68c3541d-e2d8-462a-8393-243925a5ed23",
+          "delivery": "accepted",
+          "accepted": 1,
+          "rejected": 0,
+          "console_verified": false
+        }
+      },
+      {
+        "path": "/api/run-approved-action",
+        "http_status": 502,
+        "status": "ERROR",
+        "verified": false,
+        "exception": "MCPInvocationException",
+        "reason": "MCPInvocationException: provider operation failed.",
+        "decision_source": "ARMORIQ",
+        "observability": {
+          "session_id": "80301343-caed-481d-b1dd-301ceac2737a",
+          "trace_ids": [
+            "3a072626-c19f-4454-adfa-d639f450cf82",
+            "eb3f7ee2-1000-4e5b-8286-03e3c437a605"
+          ],
+          "organization_id": "68c3541d-e2d8-462a-8393-243925a5ed23",
+          "delivery": "accepted",
+          "accepted": 1,
+          "rejected": 0,
+          "console_verified": false
+        },
+        "summary": {}
+      },
+      {
+        "path": "/api/attempt-refund",
+        "http_status": 200,
+        "status": "blocked",
+        "verified": false,
+        "exception": "IntentMismatchException",
+        "reason": "IntentMismatchException: action is outside the approved plan.",
+        "decision_source": "ARMORIQ_SDK",
+        "observability": {
+          "session_id": "80301343-caed-481d-b1dd-301ceac2737a",
+          "trace_ids": [
+            "3a072626-c19f-4454-adfa-d639f450cf82",
+            "eb3f7ee2-1000-4e5b-8286-03e3c437a605",
+            "f7535a29-62c4-408d-a834-16cd4e650bc2"
+          ],
+          "organization_id": "68c3541d-e2d8-462a-8393-243925a5ed23",
+          "delivery": "accepted",
+          "accepted": 1,
+          "rejected": 0,
+          "console_verified": false
+        }
+      }
+    ],
+    "policy_decision_confirmed": false,
+    "dashboard_decision_confirmed": false,
+    "tool_execution_confirmed": false
+  },
+  "local_services": {
+    "configuration": {
+      "configuration_status": "configured",
+      "checks": [
+        {
+          "name": "ARMORIQ_API_KEY",
+          "status": "present"
+        },
+        {
+          "name": "ARMORIQ_EXPECTED_ORG_ID",
+          "status": "present"
+        },
+        {
+          "name": "ARMORIQ_AGENT_ID",
+          "status": "present"
+        },
+        {
+          "name": "ARMORIQ_MCP_SERVER_ID",
+          "status": "present"
+        },
+        {
+          "name": "MCP_SERVER_URL",
+          "status": "present"
+        },
+        {
+          "name": "FINANCEGUARD_SCOPED_MCP",
+          "status": "present"
+        },
+        {
+          "name": "FINANCEGUARD_MCP_SIGNING_KEY",
+          "status": "present"
+        }
+      ],
+      "issues": [],
+      "connectivity": "not_checked",
+      "execution": "not_verified"
+    },
+    "key_source": "backend environment / ignored local .env",
+    "requests": [
+      {
+        "stage": "sdk_proxy_health",
+        "endpoint": "https://proxy.armoriq.ai/health",
+        "http_status": 403,
+        "json_api_response": false,
+        "credential_validity": "unconfirmed",
+        "policy_decision": false
+      },
+      {
+        "stage": "sdk_bootstrap",
+        "endpoint": "https://api.armoriq.ai/iap/sdk/bootstrap",
+        "http_status": 403,
+        "json_api_response": false,
+        "credential_validity": "unconfirmed",
+        "policy_decision": false
+      }
+    ]
+  }
+}
