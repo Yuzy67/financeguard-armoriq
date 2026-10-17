@@ -159,7 +159,12 @@ def favicon():return Response(status_code=204)
 def home():return FileResponse(ROOT/'frontend/index.html')
 
 @app.post('/api/demo')
-def demo():
+def demo(request:Request):
+    # Page reloads must not replace a still-valid sample workspace owner.
+    with master:
+        existing=guest_sessions.get(request.cookies.get('fg_demo',''))
+        if existing and existing['expires']>time.time():
+            return {'status':'READY','session_reused':True}
     key=secrets.token_urlsafe(32)
     with master:
         for old in [k for k,v in guest_sessions.items() if v['expires']<time.time()]:guest_sessions.pop(old,None)

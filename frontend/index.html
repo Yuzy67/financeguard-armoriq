@@ -265,12 +265,13 @@
             <h2 id="blocked">0</h2>
           </article>
           <article>
-            <span>ArmorIQ SDK verified</span>
+            <span>SDK-reported verified executions</span>
             <h2 id="verified-count">0</h2>
-            <p>Real provider responses only</p>
+            <p>SDK assertion; not a dashboard decision or independent proof</p>
           </article>
         </section>
         <section class="panel" id="audit" data-view="audit">
+          <p id="activity-scope" class="muted">Latest 100 events for this workspace.</p>
           <div class="heading">
             <h3>Workspace activity</h3>
             <div class="audit-controls">
@@ -280,6 +281,8 @@
                 <option value="ALLOWED">Allowed</option>
                 <option value="BLOCKED">Blocked</option>
                 <option value="ERROR">Errors</option>
+                <option value="HELD">Held for review</option>
+                <option value="DECLINED">Declined by you</option>
               </select>
             </div>
           </div>

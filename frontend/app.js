@@ -1,5 +1,6 @@
 import { installProviderUI } from "./providers.mjs";
-import { executionStatus } from "./execution-status.mjs";
+import { executionStatus, activityCounts, isSDKVerifiedExecution } from "./execution-status.mjs";
+import { ensureWorkspace } from "./workspace-session.mjs";
 const $ = (s) => document.querySelector(s),
   money = (n) =>
     new Intl.NumberFormat("en-IN", {
@@ -64,6 +65,7 @@ async function api(path, body) {
       );
       error.integration = data;
       error.requestPath = path;
+      error.httpStatus = response.status;
       throw error;
     }
     if (data.status) data.status = data.status.toUpperCase();
@@ -198,8 +200,8 @@ function renderConversation(next) {
       proof.append(
         el(
           "small",
-          action.verified === true
-            ? "ArmorIQ SDK verified=True"
+          isSDKVerifiedExecution(action.event || action)
+            ? "ArmorIQ SDK reports verified=True"
             : (action.event?.engine || "Application") +
                 " · No ArmorIQ verification claimed",
         ),
@@ -303,8 +305,8 @@ function render() {
   );
   $("#armoriq-connection").textContent = state.armoriq?.issues?.length
     ? "ArmorIQ: " + state.armoriq.issues.map((issue) => issue.message).join(" ")
-    : lastProviderEvent?.verified === true
-      ? "ArmorIQ: latest SDK execution verified"
+    : isSDKVerifiedExecution(lastProviderEvent)
+      ? "ArmorIQ: latest execution reported verified by SDK"
       : lastProviderEvent?.status === "ERROR"
         ? "ArmorIQ: setup / execution needs attention"
         : "ArmorIQ: key configured; live execution not verified";
@@ -410,15 +412,14 @@ function render() {
       "Signed in. You can preview and import invoices into your workspace.";
   $("#amount").textContent = money(state.summary.total_overdue_amount_inr);
   $("#count").textContent = state.summary.overdue_invoice_count;
-  $("#blocked").textContent = state.events.filter(
-    (e) => e.status === "BLOCKED",
-  ).length;
-  $("#approved-count").textContent = state.events.filter(
-    (e) => e.status === "ALLOWED",
-  ).length;
-  $("#verified-count").textContent = state.events.filter(
-    (e) => e.verified === true,
-  ).length;
+  const counts = activityCounts(state.events);
+  $("#blocked").textContent = counts.blocked;
+  $("#approved-count").textContent = counts.completed;
+  $("#verified-count").textContent = counts.sdkReportedVerified;
+  $("#activity-scope").textContent =
+    "Latest 100 events for " + (state.user.signed_in ? "this signed-in account" : "this sample workspace") +
+    ". Counters include all activity types; the filter below only changes the list." +
+    (state.temporary_storage ? " Storage is temporary and can reset across instances or deployments." : "");
   const plan = state.plans[$("#engine").value];
   $("#plan-badge").textContent = plan
     ? "Approved · " +
@@ -513,7 +514,7 @@ function render() {
         "small",
         e.engine +
           " · " +
-          (e.verified ? "SDK verified=True" : "No cloud verification"),
+          (isSDKVerifiedExecution(e) ? "SDK reports verified=True" : "No SDK-verified execution"),
       ),
     );
     if (e.observability) {
@@ -1213,8 +1214,7 @@ async function initializeAuth() {
   }
 }
 try {
-  await api("/api/demo", {});
-  await refresh();
+  await ensureWorkspace(api, refresh);
 } catch (error) {
   $("#connection").textContent = error.message;
   toast(error.message, "error");
