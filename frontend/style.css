@@ -1761,3 +1761,13 @@ pre {
 #provider-preview-panel { padding: 18px; border: 1px solid var(--purple); border-radius: 12px; margin: 20px 0; }
 #providers li { margin: 12px 0; line-height: 1.6; }
 .source-grid details { margin-top: 16px; }
+
+#saved-permissions { max-width: 720px; }
+.permission-choice { display: grid; grid-template-columns: 1fr minmax(180px, 240px); align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.permission-choice select { width: 100%; padding: 12px; background: #111219; color: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.consent-line { display: flex; gap: 12px; align-items: flex-start; margin: 24px 0; line-height: 1.6; }
+.consent-line input { margin-top: 6px; flex: 0 0 auto; }
+@media(max-width: 600px) { .permission-choice { grid-template-columns: 1fr; gap: 8px; } }
+
+.status.HELD { color: #f4cb70; border-color: #8a6b26; background: #302817; }
+.status.DECLINED { color: #c6c6d5; }

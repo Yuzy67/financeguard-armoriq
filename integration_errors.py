@@ -21,7 +21,7 @@ def classify(exc):
     if isinstance(exc, IntegrationError):
         return {'code': exc.code, 'category': exc.category, 'reason': str(exc),
                 'http_status': exc.http_status, 'provider_status': exc.provider_status,
-                'status': 'BLOCKED' if exc.category in {'policy', 'token'} else 'ERROR'}
+                'status': 'HELD' if exc.code == 'policy_hold' else 'BLOCKED' if exc.category in {'policy', 'token'} else 'ERROR'}
     name = type(exc).__name__
     definitions = {
         'IntentMismatchException': ('intent_mismatch', 'policy', 'IntentMismatchException: action is outside the approved plan. Nothing executed.'),

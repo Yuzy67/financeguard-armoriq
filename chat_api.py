@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 import assistant_brain as brain
+import assistant_permissions as permissions
 
 
 class ChatRequest(BaseModel):
@@ -22,7 +23,13 @@ class ApprovalRequest(BaseModel):
     request_id: str = Field(min_length=1, max_length=80)
 
 
-def install(app, identity, perform, store, sessions, owner_lock, fingerprint):
+class PermissionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    tools: dict[str, Literal['ask', 'automatic', 'never']]
+    consent: Literal[True]
+
+
+def install(app, identity, perform, store, sessions, owner_lock, fingerprint, discard_plans):
     locks = {}
     guard = threading.Lock()
     recent = {}
@@ -50,9 +57,9 @@ def install(app, identity, perform, store, sessions, owner_lock, fingerprint):
             plan = sessions.get(user['uid'], {}).get(engine)
             return plan['tool'] if plan and plan['expires'] > time.time() and plan['fingerprint'] == conversation['fingerprint'] else None
 
-    def action_result(tool, user, engine):
+    def action_result(tool, user, engine, consent_version=None):
         try:
-            result = perform(tool, user, engine)
+            result = perform(tool, user, engine, expected_consent_version=consent_version)
             return json.loads(result.body) if isinstance(result, JSONResponse) else result
         except HTTPException as exc:
             return {'status': 'ERROR', 'reason': str(exc.detail), 'verified': False}
@@ -65,6 +72,43 @@ def install(app, identity, perform, store, sessions, owner_lock, fingerprint):
         persist(user, conversation)
         return {'status': status, 'reply': reply, 'actions': actions or [],
                 'conversation': brain.public(conversation)}
+
+    @app.get('/api/assistant/permissions')
+    def get_permissions(user=Depends(identity)):
+        require_user(user)
+        return permissions.load(store, user['uid'])
+
+    @app.post('/api/assistant/permissions')
+    def set_permissions(body: PermissionRequest, user=Depends(identity)):
+        require_user(user)
+        with lock_for(user['uid']), owner_lock(user['uid']):
+            try:
+                result = permissions.save(store, user['uid'], body.tools)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from None
+            discard_plans(user['uid'])
+            conversation = current(user)
+            conversation['pending'] = None
+            brain.save(store, user['uid'], conversation)
+            store.event(user['uid'], 'assistant_permissions', 'UPDATED',
+                        'Saved account consent; old plans revoked. ArmorIQ organization policy unchanged.', engine='APPLICATION_CONSENT')
+            return result
+
+    @app.post('/api/chat/decline')
+    def decline_pending(body: ApprovalRequest, user=Depends(identity)):
+        require_user(user)
+        with lock_for(user['uid']):
+            conversation = current(user)
+            pending = conversation.get('pending')
+            if not pending or pending['id'] != body.request_id:
+                raise HTTPException(409, 'This permission request is no longer active.')
+            conversation['pending'] = None
+            with owner_lock(user['uid']):
+                discard_plans(user['uid'])
+            event = store.event(user['uid'], pending['tool'], 'DECLINED',
+                                'You declined this request. Nothing executed.', engine='APPLICATION_CONSENT')
+            return finish(user, conversation, event['reason'],
+                          [{'status': 'DECLINED', 'reason': event['reason'], 'verified': False, 'event': event}], status='DECLINED')
 
     @app.get('/api/chat')
     def history(user=Depends(identity)):
@@ -93,7 +137,8 @@ def install(app, identity, perform, store, sessions, owner_lock, fingerprint):
             conversation['pending'] = None
             conversation['messages'].append({'role': 'user', 'content': body.message.strip()})
             plan_tool = approved(user, body.engine, conversation)
-            messages = brain.context(conversation, body.engine, plan_tool)
+            profile = permissions.load(store, user['uid'])
+            messages = brain.context(conversation, body.engine, plan_tool, profile['tools'] if profile['configured'] else None)
             try:
                 response = brain.complete(messages)
             except brain.BrainError as exc:
@@ -102,7 +147,25 @@ def install(app, identity, perform, store, sessions, owner_lock, fingerprint):
                 brain.add_usage(conversation, response)
                 return finish(user, conversation, response['text'] or 'Could you tell me what you would like to review?')
             tool = response['calls'][0]['function']['name']
-            if tool in brain.SAFE and tool != plan_tool:
+            profile = permissions.load(store, user['uid'])
+            mode = profile['tools'].get(tool, 'never')
+            if tool in brain.SAFE and mode == 'never':
+                brain.add_usage(conversation, response)
+                event = store.event(user['uid'], tool, 'BLOCKED', 'Disabled in your saved assistant permissions. Nothing executed.', engine='APPLICATION_CONSENT')
+                return finish(user, conversation, event['reason'], [{'status': 'BLOCKED', 'reason': event['reason'], 'verified': False, 'event': event}], status='BLOCKED')
+            if tool in brain.SAFE and mode == 'automatic':
+                if not user.get('email_verified'):
+                    raise HTTPException(403, 'Verify your sign-in email before enabling automatic ArmorIQ execution.')
+                if body.engine != 'armoriq':
+                    brain.add_usage(conversation, response)
+                    return finish(user, conversation, 'Your saved automatic permission requires ArmorIQ. Select ArmorIQ protection and retry; nothing executed.', status='ERROR')
+                if tool != plan_tool:
+                    approval = perform(tool, user, 'armoriq', approve=True, expected_fingerprint=conversation['fingerprint'], expected_consent_version=profile['updated_at'])
+                    approval = json.loads(approval.body) if isinstance(approval, JSONResponse) else approval
+                    if approval.get('status') != 'APPROVED':
+                        brain.add_usage(conversation, response)
+                        return finish(user, conversation, approval.get('reason', 'ArmorIQ plan creation failed. Nothing executed.'), [approval], status=approval.get('status', 'ERROR'))
+            elif tool in brain.SAFE and (tool != plan_tool or profile['configured']):
                 brain.add_usage(conversation, response)
                 reply, _ = brain.ask_permission(conversation, tool, body.engine)
                 return finish(user, conversation, reply, status='NEEDS_APPROVAL')
@@ -112,7 +175,7 @@ def install(app, identity, perform, store, sessions, owner_lock, fingerprint):
                                     'No approved plan permits this simulation. Nothing executed.', engine='APPLICATION_POLICY')
                 action = {'status': 'BLOCKED', 'reason': event['reason'], 'verified': False, 'event': event}
                 return finish(user, conversation, action['reason'], [action], status='BLOCKED')
-            action = action_result(tool, user, body.engine)
+            action = action_result(tool, user, body.engine, profile['updated_at'] if tool in brain.SAFE and mode == 'automatic' else None)
             reply = brain.explain_result(conversation, messages, response, action)
             return finish(user, conversation, reply, [action], status=action['status'])
         finally:

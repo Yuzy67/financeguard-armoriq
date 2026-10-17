@@ -65,3 +65,12 @@ test("only actual verified result receives badge; approval and denial do not", (
     );
   }
 });
+
+test("ArmorIQ holds remain distinct from denials and verification", () => {
+  const state = { events: [{ engine: "ARMORIQ", status: "HELD", reason: "Reviewer approval required", verified: false }] };
+  assert.deepEqual(executionStatus(state, "armoriq"), { title: "Waiting for ArmorIQ review", text: "Reviewer approval required" });
+});
+test("declining permission remains visible without claiming a provider denial", () => {
+  const state = { events: [{ engine: "APPLICATION_CONSENT", status: "DECLINED", reason: "You declined this request." }] };
+  assert.equal(executionStatus(state, "armoriq").title, "You declined this request");
+});
