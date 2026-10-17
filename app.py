@@ -18,6 +18,7 @@ import workspace as store
 from security import verify_identity
 import mcp_access
 import assistant_brain
+import assistant_permissions
 from armoriq_workflow import ArmorIQWorkflow
 from integration_errors import classify, IntegrationError
 from runtime_config import armoriq_configuration, require_armoriq_configuration, deployment_metadata
@@ -71,10 +72,16 @@ def failure(uid,tool,exc,engine,observability=None):
     event=store.event(uid,tool,error['status'],error['reason'],engine='ARMORIQ_SDK' if type(exc).__name__=='IntentMismatchException' else engine.upper(),observability=observability)
     return JSONResponse({'status':event['status'],'reason':error['reason'],'code':error['code'],'category':error['category'],'provider_status':error['provider_status'],'event':event,'verified':False},status_code=error['http_status'])
 
-def perform(tool,user,engine='local',approve=False,expected_fingerprint=None):
+def perform(tool,user,engine='local',approve=False,expected_fingerprint=None,expected_consent_version=None):
     uid=user['uid']
     with owner_lock(uid):
         kind,rows=store.source(uid);session=sessions.setdefault(uid,{})
+        profile=assistant_permissions.load(store,uid) if user.get('signed_in') else None
+        if expected_consent_version is not None and (not profile or profile['updated_at']!=expected_consent_version or profile['tools'].get(tool)!='automatic'):
+            raise HTTPException(409,'Your assistant permissions changed. Ask again under the current choices.')
+        if profile and profile['tools'].get(tool)=='never':
+            event=store.event(uid,tool,'BLOCKED','Disabled in your saved assistant permissions. Nothing executed.',engine='APPLICATION_CONSENT')
+            return {'status':'BLOCKED','reason':event['reason'],'event':event,'verified':False}
         if expected_fingerprint and fingerprint(rows)!=expected_fingerprint:raise HTTPException(409,'Invoice data changed. Request approval again for the new snapshot.')
         if engine not in {'local','armoriq'}:raise HTTPException(400,'Unknown execution engine.')
         if engine=='armoriq' and kind!='sample' and os.environ.get('FINANCEGUARD_SCOPED_MCP')!='1':raise HTTPException(409,'Scoped MCP forwarding must be configured before ArmorIQ can read your imported workspace.')
@@ -203,6 +210,11 @@ def audit_log(user=Depends(identity)):
 def revoke(user=Depends(identity)):
     with owner_lock(user['uid']):
         discard_plans(user['uid'])
+        if user.get('signed_in') and assistant_permissions.load(store,user['uid'])['configured']:
+            assistant_permissions.save(store,user['uid'],assistant_permissions.defaults())
+        conversation=assistant_brain.load(store,user['uid'],fingerprint(store.source(user['uid'])[1]))
+        conversation['pending']=None
+        assistant_brain.save(store,user['uid'],conversation)
         event=store.event(user['uid'],'revoke_plans','REVOKED','Workspace approvals and origin credentials revoked. This is not a global provider token revocation.')
     return {'status':'REVOKED','reason':event['reason'],'event':event}
 
@@ -275,7 +287,7 @@ def stripe_sync(user=Depends(identity)):
     return {'status':'SYNCED','count':len(rows)}
 
 from chat_api import install as install_chat
-install_chat(app,identity,perform,store,sessions,owner_lock,fingerprint)
+install_chat(app,identity,perform,store,sessions,owner_lock,fingerprint,discard_plans)
 
 from invoice_connections import install as install_connections
 install_connections(app,identity,owner_lock,discard_plans)

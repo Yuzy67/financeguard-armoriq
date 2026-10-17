@@ -18,6 +18,7 @@ let state = null,
 let linkedFile = null,
   pendingHandle = null,
   pendingRevision = -1;
+let permissionProfile = null;
 let lastRequestFailure = null;
 let conversation = null,
   chatSnapshot = "",
@@ -262,7 +263,13 @@ function renderConversation(next) {
         renderConversation(result.conversation);
         status(result.reply, result.status === "ERROR" ? "error" : "info");
       });
-    card.append(approve);
+    const decline = el("button", "Don’t approve");
+    decline.onclick = () => task(async () => {
+      const result = await api("/api/chat/decline", { request_id: pending.id });
+      renderConversation(result.conversation);
+      status(result.reply, "info");
+    });
+    card.append(approve, decline);
     $("#chat-pending").append(card);
   }
   $("#chat-usage").textContent = next.usage?.total_tokens
@@ -323,7 +330,7 @@ function render() {
   if (policyReceipt) {
     $("#trace-status").textContent += policyReceipt.source === "ARMORIQ_ENFORCEMENT_API"
       ? " · enforcement HTTP " + policyReceipt.http_status + ", decision " +
-        (policyReceipt.response_valid ? (policyReceipt.allowed ? "ALLOW" : "DENY") : "invalid response") +
+        (policyReceipt.enforcement_action === "hold" ? "HOLD" : policyReceipt.response_valid ? (policyReceipt.allowed ? "ALLOW" : "DENY") : "invalid response") +
         ". Policy target and dashboard record require independent confirmation."
       : " · SDK intent binding denied before proxy execution; not a cloud policy decision.";
   }
@@ -555,6 +562,7 @@ async function refresh() {
     if (state?.user?.uid !== next.user.uid) lastRequestFailure = null;
     state = next;
     render();
+    if (next.user.signed_in) await loadSavedPermissions(version);
     const snapshot = JSON.stringify(next.invoices) + next.user.uid;
     if (snapshot !== chatSnapshot) {
       chatSnapshot = snapshot;
@@ -1124,6 +1132,8 @@ async function initializeAuth() {
       revision++;
       user = next;
       state = null;
+      permissionProfile = null;
+      if ($("#saved-permissions").open) $("#saved-permissions").close();
       window.dispatchEvent(new Event("fg-account-changed"));
       pendingCSV = "";
       linkedFile = null;
@@ -1143,7 +1153,7 @@ async function initializeAuth() {
       $("#events").replaceChildren();
       $("#messages").replaceChildren();
       bubble(
-        "Your workspace is ready. Select a plan and approve the action you want to run.",
+        "Ask about your invoices. Saved permissions control automatic access; ArmorIQ can still block or hold an action.",
       );
       $("#password").value = "";
       $("#auth-feedback").textContent = next
@@ -1160,7 +1170,8 @@ async function initializeAuth() {
         render();
         if (next && !sessionStorage.getItem("fg-onboard-" + next.uid)) {
           sessionStorage.setItem("fg-onboard-" + next.uid, "1");
-          $("#sources").showModal();
+          if (!permissionProfile?.configured) $("#saved-permissions").showModal();
+          else $("#sources").showModal();
         }
         if (next) window.dispatchEvent(new Event("fg-auth-ready"));
       }
@@ -1224,3 +1235,62 @@ initializeAuth();
 setInterval(() => {
   if (!busy) refresh().catch((e) => ($("#connection").textContent = e.message));
 }, 15000);
+
+
+const permissionTaskNames = {
+  summarize_overdue_invoices: "Summarize overdue invoices",
+  list_invoices: "Read invoice details and lists",
+  create_draft_payment_reminders: "Prepare reminder drafts (never send)",
+  export_sandbox_reports: "Prepare invoice reports",
+};
+async function loadSavedPermissions(version = revision) {
+  if ($("#saved-permissions").open) return;
+  const profile = await api("/api/assistant/permissions");
+  if (version !== revision) return;
+  $("#consent-status").textContent = profile.configured
+    ? "Saved boundaries active · Your consent → ArmorIQ policy → invoice tool. ArmorIQ may allow, hold or block."
+    : "Set your saved permissions to enable automatic ArmorIQ checks, or approve one task at a time.";
+  const firstLoad = permissionProfile === null;
+  permissionProfile = profile;
+  if (firstLoad && profile.configured) $("#engine").value = "armoriq";
+  const holder = $("#saved-permissions-tools");
+  holder.replaceChildren();
+  for (const [tool, name] of Object.entries(permissionTaskNames)) {
+    const row = el("label", "", "permission-choice");
+    const select = document.createElement("select");
+    select.name = tool;
+    for (const [value, label] of [["ask", "Ask me each time"], ["automatic", "Automatic with ArmorIQ"], ["never", "Never allow"]]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      select.append(option);
+    }
+    select.value = profile.tools[tool] || "ask";
+    row.append(el("span", name), select);
+    holder.append(row);
+  }
+  $("#saved-permissions-consent").checked = false;
+  $("#saved-permissions-storage").textContent = profile.storage === "temporary"
+    ? "This deployment has temporary storage. If saved choices are lost, the assistant asks again; it never assumes permission."
+    : "Saved to your account’s workspace storage. Changing choices revokes existing plans.";
+}
+$("#saved-permissions-open").onclick = () => task(async () => {
+  if (!state?.user?.signed_in) { $("#account").showModal(); return; }
+  await loadSavedPermissions();
+  $("#saved-permissions").showModal();
+});
+$("#saved-permissions-form").onsubmit = (event) => {
+  event.preventDefault();
+  if (!$("#saved-permissions-form").reportValidity()) return;
+  const version = revision;
+  const tools = Object.fromEntries([...$("#saved-permissions-tools").querySelectorAll("select")].map(s => [s.name, s.value]));
+  task(async () => {
+    const profile = await api("/api/assistant/permissions", { tools, consent: true });
+    if (version !== revision) return;
+    permissionProfile = profile;
+    $("#engine").value = "armoriq";
+    $("#saved-permissions").close();
+    await loadConversation();
+    status("Saved your boundaries. Automatic tasks still go through ArmorIQ; its holds and blocks cannot be overridden here.", "info");
+  });
+};

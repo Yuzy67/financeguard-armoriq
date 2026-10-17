@@ -190,3 +190,10 @@ OAuth invoice READ consent; Razorpay and Stripe customer connectors accept test
 credentials only. See [setup, tutorials and verification limits](docs/PROVIDER-CONNECTIONS.md).
 Provider connections require a persistent backend and remain unavailable on the
 current temporary Vercel host. No live provider integration pass is claimed.
+
+## Saved chat permissions
+
+After sign-in, open **Assistant → Saved permissions** to choose Automatic with
+ArmorIQ, Ask me, or Never for each safe task. Automatic consent never overrides
+ArmorIQ policy; provider holds and blocks still stop execution. See
+[the permissions workflow and storage limitations](docs/ASSISTANT-PERMISSIONS.md).

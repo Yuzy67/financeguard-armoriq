@@ -10,13 +10,15 @@ from armoriq_workflow import ArmorIQWorkflow,ConfigurationError,TARGET_ORG
 
 class ObservabilityTests(unittest.TestCase):
     def setUp(self):
-        self.batches=[];self.status=200;self.policy_status=200;self.policy_allowed=True;self.malformed=False
+        self.batches=[];self.enforcement_agents=[];self.status=200;self.policy_status=200;self.policy_action=None;self.policy_allowed=True;self.malformed=False
         self.env=patch.dict(os.environ,{'ARMORIQ_AGENT_ID':'test-agent','ARMORIQ_MCP_SERVER_ID':'2da563ef-544e-4db7-a418-0c404cf75180','ARMORIQ_API_KEY':'ak_test_unit_test_placeholder','ARMORIQ_EXPECTED_ORG_ID':TARGET_ORG,'MCP_SERVER_URL':'https://mcp.example/mcp','ARMORIQ_OBSERVABILITY':'true','FINANCEGUARD_SCOPED_MCP':'1','FINANCEGUARD_MCP_SIGNING_KEY':'unit-test-signing-key-'+'a'*32})
         self.env.start()
         self.client=ArmorIQClient(api_key='ak_test_unit_test_placeholder',user_id='test-operator',agent_id='test-agent',_skip_api_key_validation=True)
         self.client.http_client.close()
         def respond(request):
-            if request.url.path.endswith('/iap/sdk/enforce'):return httpx.Response(self.policy_status,json={} if self.malformed else {'allowed':self.policy_allowed})
+            if request.url.path.endswith('/iap/sdk/enforce'):
+                self.enforcement_agents.append(json.loads(request.content).get('agent_id'))
+                return httpx.Response(self.policy_status,json={} if self.malformed else {'allowed':self.policy_allowed, **({'enforcementAction':self.policy_action} if self.policy_action else {})})
             if request.url.path.endswith('/iap/audit'):return httpx.Response(200,json={})
             if request.url.path.endswith('/observability/spans'):
                 payload=json.loads(request.content);self.batches.extend(payload['batches'])
@@ -113,3 +115,31 @@ class ObservabilityTests(unittest.TestCase):
         self.assertEqual(evidence['runtime_policy']['http_status'],200)
         self.assertTrue(evidence['runtime_policy']['allowed'])
         self.assertFalse(evidence['runtime_policy']['dashboard_decision_confirmed'])
+
+    def test_existing_registry_uuid_is_sent_to_enforcement_and_telemetry(self):
+        # A free-form historical caller label must not silently replace the
+        # explicitly configured existing registry identity.
+        identifier='0b925302-bb1d-4e44-908a-e67869e52db9'
+        with patch.dict(os.environ,{'ARMORIQ_AGENT_ID':identifier}):
+            self.client.agent_id=identifier
+            self.client.bootstrap.return_value={'org':{'orgId':TARGET_ORG},'agent':{'agentId':identifier}}
+            workflow=self.start()
+            workflow.invoke('summarize_overdue_invoices',{},'demo@example.com')
+            evidence=workflow.flush()
+            self.assertEqual(self.enforcement_agents,[identifier])
+            self.assertEqual(evidence['agent_id'],identifier)
+            self.assertTrue(self.batches)
+            self.assertTrue(all(batch['trace']['agentId']==identifier for batch in self.batches))
+            self.assertNotIn('financeguard-demo',json.dumps(self.batches))
+
+    def test_native_sdk_hold_is_preserved_without_proxy_execution(self):
+        from integration_errors import classify
+        self.policy_allowed=False;self.policy_action='hold'
+        workflow=self.start()
+        identifier='29f673f2-90fb-4720-a2ae-4a02a14c666b'
+        with patch.object(self.client,'check_approved_delegation',return_value=None), patch.object(self.client,'create_delegation_request',return_value=SimpleNamespace(delegation_id=identifier)):
+            with self.assertRaises(RuntimeError) as raised:
+                workflow.invoke('summarize_overdue_invoices',{},'demo@example.com')
+        self.assertEqual(classify(raised.exception)['status'],'HELD')
+        self.assertEqual(workflow.snapshot()['runtime_policy']['delegation_id'],identifier)
+        self.client.invoke.assert_not_called()

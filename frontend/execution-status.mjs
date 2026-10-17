@@ -4,7 +4,7 @@ export function executionStatus(state, engine, failure) {
     return { title: "Execution needs attention", text: failure.reason };
   const event = state?.events?.find(
     (e) =>
-      e.status === "REVOKED" ||
+      ["REVOKED", "DECLINED"].includes(e.status) ||
       (engine === "armoriq"
         ? ["ARMORIQ", "ARMORIQ_SDK"].includes(e.engine)
         : ["LOCAL", "LOCAL_POLICY"].includes(e.engine)),
@@ -13,6 +13,8 @@ export function executionStatus(state, engine, failure) {
     const title = {
       APPROVED: "Permission approved",
       BLOCKED: "Request blocked",
+      HELD: "Waiting for ArmorIQ review",
+      DECLINED: "You declined this request",
       ERROR: "Execution needs attention",
       REVOKED: "Approval revoked",
     }[event.status];

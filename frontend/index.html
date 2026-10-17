@@ -181,7 +181,8 @@
             </div>
             <div>
               <button id="new-chat">＋ New chat</button
-              ><button id="show-permissions">◇ Permissions</button>
+              ><button id="show-permissions">◇ Run once</button>
+              <button id="saved-permissions-open">◇ Saved permissions</button>
             </div>
           </div>
           <div class="chat-mode-strip">
@@ -190,6 +191,7 @@
             ><span id="chat-usage">No reported token usage</span>
           </div>
           <div id="messages" aria-live="polite" aria-label="Conversation"></div>
+          <p id="consent-status" class="muted">Your consent → ArmorIQ policy → invoice tool. Saving permissions never overrides an ArmorIQ denial.</p>
           <div id="chat-pending" hidden></div>
           <div class="composer-wrap">
             <form id="chat">
@@ -306,6 +308,22 @@
         </footer>
       </div>
     </main>
+    <dialog id="saved-permissions">
+      <div class="heading">
+        <h3>Set your assistant’s boundaries</h3>
+        <button data-close="saved-permissions" aria-label="Close">✕</button>
+      </div>
+      <p>Choose once for this account. You can change these choices at any time.</p>
+      <p class="muted">Automatic tasks require a verified sign-in email and a real ArmorIQ decision. Your organization’s blocks and reviewer holds always win.</p>
+      <form id="saved-permissions-form">
+        <div id="saved-permissions-tools"></div>
+        <p class="muted">Refunds, transfers, invoice deletion and sending emails cannot be enabled here.</p>
+        <label class="consent-line"><input type="checkbox" id="saved-permissions-consent" required> I authorize these choices for current and future invoice imports. Actual tool results may be shared with the AI provider to answer my requests.</label>
+        <p id="saved-permissions-storage" role="status" class="muted"></p>
+        <p class="muted">These choices are saved in FinanceGuard. Each automatic task creates a scoped ArmorIQ plan when needed; saving this form does not change your organization’s ArmorIQ policy.</p>
+        <button type="submit" class="primary">Save permissions</button>
+      </form>
+    </dialog>
     <dialog id="permissions">
       <div class="heading">
         <h3>Assistant permissions</h3>

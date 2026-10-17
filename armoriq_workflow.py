@@ -145,6 +145,14 @@ class ArmorIQWorkflow:
             if not self.enforce_response_valid or str(getattr(decision, 'reason', '') or '').startswith('enforce-unavailable:'):
                 raise IntegrationError('ArmorIQ policy response was invalid or incomplete. No tool executed.', 'policy_response_invalid', 'provider')
         if not decision.allowed:
+            if getattr(decision, 'action', None) == 'hold':
+                if self.policy_receipt is not None:
+                    self.policy_receipt['enforcement_action'] = 'hold'
+                    identifier = getattr(decision, 'delegation_id', None)
+                    if identifier:
+                        try:self.policy_receipt['delegation_id'] = str(__import__('uuid').UUID(identifier))
+                        except (ValueError, TypeError):pass
+                raise IntegrationError('ArmorIQ held this action for reviewer approval. No tool executed. Review it in ArmorIQ Held Actions, then retry the same task before its plan expires.', 'policy_hold', 'policy', http_status=200)
             if tool != self.tool:
                 self.policy_receipt = {'source':'ARMORIQ_SDK_INTENT_BINDING','allowed':False,'http_status':None,'dashboard_decision_confirmed':False}
                 # Preserve the original SDK intent-binding rejection. invoke()
