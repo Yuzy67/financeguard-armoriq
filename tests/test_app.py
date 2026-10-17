@@ -78,11 +78,22 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(self.post('/api/source/stripe',{}).status_code,400)
     def test_revoke(self):
         self.post('/api/approve',{})
+        credential=module.sessions[self.user['uid']]['local']['mcp_token']
         self.assertEqual(self.post('/api/revoke',{}).json()['status'],'REVOKED')
         self.assertEqual(self.post('/api/execute',{}).status_code,409)
+        with self.assertRaises(RuntimeError):module.mcp_access.invoke('summarize_overdue_invoices',credential)
+    def test_missing_backend_configuration_is_sanitized_and_never_creates_workflow(self):
+        with patch.dict(os.environ,{'ARMORIQ_API_KEY':''}),patch('app.ArmorIQWorkflow') as workflow:
+            response=self.post('/api/approve',{'engine':'armoriq'})
+            self.assertEqual(response.status_code,503)
+            data=response.json()
+            self.assertEqual(data['category'],'configuration')
+            self.assertEqual(data['code'],'armoriq_api_key_missing')
+            self.assertFalse(data['verified']);workflow.assert_not_called()
+            self.assertEqual(self.web.get('/api/state').json()['events'][0]['status'],'ERROR')
     def test_scoped_armoriq_forwarding_and_result(self):
         from types import SimpleNamespace
-        with patch.dict(os.environ,{'FINANCEGUARD_SCOPED_MCP':'1','ARMORIQ_API_KEY':'unit-test-placeholder'}),patch('app.ArmorIQWorkflow') as client:
+        with patch.dict(os.environ,{'FINANCEGUARD_SCOPED_MCP':'1','ARMORIQ_AGENT_ID':'test-agent','ARMORIQ_MCP_SERVER_ID':'2da563ef-544e-4db7-a418-0c404cf75180','ARMORIQ_API_KEY':'ak_test_unit_test_placeholder','ARMORIQ_EXPECTED_ORG_ID':'68c3541d-e2d8-462a-8393-243925a5ed23','MCP_SERVER_URL':'https://mcp.example/mcp','FINANCEGUARD_MCP_SIGNING_KEY':'unit-test-signing-key-'+'a'*32}),patch('app.ArmorIQWorkflow') as client:
             client.return_value.snapshot.return_value={'session_id':'test-session','trace_ids':[],'delivery':'unconfirmed','accepted':0,'rejected':0}
             client.return_value.flush.return_value=client.return_value.snapshot.return_value
             client.return_value.invoke.return_value=SimpleNamespace(status='success',verified=True,result={'content':[{'type':'text','text':'{"overdue_invoice_count":3,"total_overdue_amount_inr":88000}'}],'isError':False})

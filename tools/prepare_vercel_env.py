@@ -30,12 +30,15 @@ def main():
         existing=runtime/'mcp-signing.key'
         signing=existing.read_text().strip() if existing.exists() else secrets.token_urlsafe(48)
     if len(signing)<32:raise SystemExit('The existing signing key is too short; no files changed.')
+    for field in ['ARMORIQ_AGENT_ID','ARMORIQ_MCP_SERVER_ID','MCP_SERVER_URL']:
+        if not values.get(field):raise SystemExit(field+' is required from the existing registry; no endpoint or identity will be guessed.')
     prepared={
         'ARMORIQ_API_KEY':key,
         'ARMORIQ_EXPECTED_ORG_ID':org,
-        'ARMORIQ_AGENT_ID':values.get('ARMORIQ_AGENT_ID') or 'financeguard-demo',
+        'ARMORIQ_AGENT_ID':values['ARMORIQ_AGENT_ID'],
+        'ARMORIQ_MCP_SERVER_ID':values['ARMORIQ_MCP_SERVER_ID'],
         'ARMORIQ_OBSERVABILITY':'true',
-        'MCP_SERVER_URL':'https://financeguard-armoriq.vercel.app/mcp',
+        'MCP_SERVER_URL':values['MCP_SERVER_URL'],
         'FINANCEGUARD_SCOPED_MCP':'1',
         'FINANCEGUARD_MCP_SIGNING_KEY':signing,
         'FIREBASE_PROJECT_ID':values.get('FIREBASE_PROJECT_ID') or 'asmoneykit',

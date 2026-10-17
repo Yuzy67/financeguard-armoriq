@@ -1754,3 +1754,10 @@ pre {
     padding-left: 5px;
   }
 }
+#providers { max-width: 760px; }
+#providers label { display: block; margin: 16px 0 8px; color: var(--muted); font-size: 13px; }
+#providers input, #providers select { box-sizing: border-box; width: 100%; padding: 12px; background: #111219; color: #fff; border: 1px solid var(--line); border-radius: 8px; }
+#providers .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+#provider-preview-panel { padding: 18px; border: 1px solid var(--purple); border-radius: 12px; margin: 20px 0; }
+#providers li { margin: 12px 0; line-height: 1.6; }
+.source-grid details { margin-top: 16px; }

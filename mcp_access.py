@@ -2,6 +2,7 @@
 import asyncio,hashlib,json,os,secrets,time
 from pathlib import Path
 import jwt
+from contextlib import contextmanager
 import workspace as store
 
 def secret():
@@ -19,16 +20,36 @@ def secret():
 
 def fingerprint(rows):return hashlib.sha256(json.dumps(rows,sort_keys=True).encode()).hexdigest()
 
+@contextmanager
+def grants():
+    with store.db() as connection:
+        connection.execute('CREATE TABLE IF NOT EXISTS mcp_grants(id TEXT PRIMARY KEY,owner TEXT NOT NULL,expires INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0)')
+        yield connection
+
+def revoke_owner(owner):
+    with grants() as conn:conn.execute('UPDATE mcp_grants SET revoked=1 WHERE owner=?',(owner,))
+
+def revoke_token(token):
+    claims=jwt.decode(token,secret(),algorithms=['HS256'],audience='finance-mcp',issuer='financeguard-backend',options={'verify_exp':False})
+    with grants() as conn:conn.execute('UPDATE mcp_grants SET revoked=1 WHERE id=?',(claims.get('jti',''),))
+
 def issue(owner,tool,rows):
-    now=int(time.time())
-    return jwt.encode({'sub':owner,'aud':'finance-mcp','iss':'financeguard-backend','tool':tool,'data':fingerprint(rows),'iat':now,'exp':now+300},secret(),algorithm='HS256')
+    now=int(time.time());identifier=secrets.token_urlsafe(32)
+    token=jwt.encode({'sub':owner,'aud':'finance-mcp','iss':'financeguard-backend','jti':identifier,'tool':tool,'data':fingerprint(rows),'iat':now,'exp':now+300},secret(),algorithm='HS256')
+    with grants() as conn:
+        conn.execute('DELETE FROM mcp_grants WHERE expires<?',(now,))
+        conn.execute('INSERT INTO mcp_grants(id,owner,expires) VALUES (?,?,?)',(identifier,owner,now+300))
+    return token
 
 def authorized_rows(ctx,tool):
     request=ctx.request_context.request
     header=request.headers.get('authorization','') if request else ''
     if not header.startswith('Bearer '):raise PermissionError('MCP workspace authorization required.')
     try:
-        claims=jwt.decode(header[7:],secret(),algorithms=['HS256'],audience='finance-mcp',issuer='financeguard-backend',options={'require':['sub','tool','data','exp','iat']})
+        claims=jwt.decode(header[7:],secret(),algorithms=['HS256'],audience='finance-mcp',issuer='financeguard-backend',options={'require':['sub','jti','tool','data','exp','iat']})
+        with grants() as conn:
+            active=conn.execute('SELECT 1 FROM mcp_grants WHERE id=? AND owner=? AND revoked=0 AND expires>?',(claims['jti'],claims['sub'],int(time.time()))).fetchone()
+        if not active:raise ValueError('Approval is revoked or unavailable on this MCP origin.')
         if claims['tool']!=tool:raise ValueError('Tool outside approved scope.')
         _,rows=store.source(claims['sub'])
         if claims['data']!=fingerprint(rows):raise ValueError('Invoice data changed. Reapprove the plan.')
